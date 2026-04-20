@@ -1,0 +1,18 @@
+{
+  "name": "오디움 뮤지엄샵",
+  "short_name": "뮤지엄샵",
+  "description": "오디움 뮤지엄샵 재고관리",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#1A1A1A",
+  "theme_color": "#1A1A1A",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjEwMCIgZmlsbD0iIzFBMUExQSIvPgogIDx0ZXh0IHg9IjI1NiIgeT0iMjQwIiBmb250LXNpemU9IjIwMCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+8J+TozwvdGV4dD4KICA8bGluZSB4MT0iODAiIHkxPSIzNDAiIHgyPSI0MzIiIHkyPSIzNDAiIHN0cm9rZT0iI0U4RTREQyIgc3Ryb2tlLXdpZHRoPSIxIiBvcGFjaXR5PSIwLjQiLz4KICA8dGV4dCB4PSIyNTYiIHk9IjM5MCIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsc2VyaWYiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSIzMDAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNFOEU0REMiIGxldHRlci1zcGFjaW5nPSI4Ij7smKTrlJTsm4A8L3RleHQ+CiAgPHRleHQgeD0iMjU2IiB5PSI0NDgiIGZvbnQtZmFtaWx5PSJHZW9yZ2lhLHNlcmlmIiBmb250LXNpemU9IjMyIiBmb250LXdlaWdodD0iMzAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSJyZ2JhKDIzMiwyMjgsMjIwLDAuNikiIGxldHRlci1zcGFjaW5nPSI2Ij7rrqTsp4Dsl4Tsg7U8L3RleHQ+Cjwvc3ZnPg==",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
