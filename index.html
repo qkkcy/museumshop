@@ -500,15 +500,13 @@ db_ref.once('value').then(snapshot => {
 function initDraft(date){
   const draft={};
   getProds().filter(p=>p.sample!=='DP').forEach(prod=>{
-    const s=typeof prod.sample==='number'?prod.sample:0;
     const rec=getDateRec(prod.id,date);
     if(rec){
-      // 기존 저장된 기록 → 그대로 로드
-      draft[prod.id]={storage:String(getS(rec)??''),drawer:String(getD(rec)??''),sales:0,dirty:false,saved:true};
+      // 기존 저장된 기록 → 실사값 + 판매값 모두 로드
+      draft[prod.id]={storage:String(getS(rec)??''),drawer:String(getD(rec)??''),sales:parseInt(rec.sales)||0,dirty:false,saved:true,salesSaved:true};
       return;
     }
-    // 새 날짜 → 항상 빈칸 (직접 카운트해서 입력)
-    draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false,saved:false};
+    draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false,saved:false,salesSaved:false};
   });
   return draft;
 }
@@ -682,6 +680,10 @@ function inventoryTable(){
 function salesTable(){
   const prods=getProds().filter(p=>p.sample!=='DP');
   const date=state.selDate;
+  const hasSavedSales=prods.some(prod=>{
+    const rec=getDateRec(prod.id,date);
+    return rec&&parseInt(rec.sales)>0;
+  });
   const thead=el('thead',null,el('tr',null,
     el('th',null,'제품명'),
     el('th',null,'실사합계'),
@@ -693,6 +695,8 @@ function salesTable(){
     const total=getTotal(d.storage,d.drawer,prod);
     const v=(d.storage!==''||d.drawer!=='')?verify(prod.id,date,d.storage||'0',d.drawer||'0'):null;
     const bg=CAT_BG[prod.cat];
+    const rec=getDateRec(prod.id,date);
+    const savedSales=rec?parseInt(rec.sales)||0:0;
     const mn=el('button',{class:'t-btn'},'−');
     mn.addEventListener('click',()=>{
       if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false};
@@ -709,13 +713,21 @@ function salesTable(){
     });
     const salesNum=el('span',{class:'t-num'},String(d.sales||0));
     return el('tr',null,
-      el('td',{style:{backgroundColor:bg}},prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
+      el('td',{style:{backgroundColor:bg}},
+        el('div',null,prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
+        savedSales>0&&!state.draft[prod.id]?.dirty
+          ?el('div',{style:{fontSize:'8px',color:'var(--ok)',marginTop:'1px'}},`✓ 저장된 판매: ${savedSales}개`)
+          :null
+      ),
       el('td',{style:{backgroundColor:bg},class:'auto-c'},total!=null?total:'-'),
       el('td',{style:{backgroundColor:bg}},el('div',{class:'t-sales'},mn,salesNum,pl)),
       el('td',{style:{backgroundColor:bg}},vBadge(v))
     );
   });
-  return el('div',{class:'tbl-wrap'},el('table',{class:'tbl'},thead,el('tbody',null,...rows)));
+  return el('div',null,
+    hasSavedSales?el('div',{class:'ibox info',style:{margin:'0 12px 4px'}},'🛒 저장된 판매 내역이 있어요. 수정 후 판매 저장을 누르세요.'):null,
+    el('div',{class:'tbl-wrap'},el('table',{class:'tbl'},thead,el('tbody',null,...rows)))
+  );
 }
 
 // ── 현장재고 페이지 ─────────────────────────────────────────
@@ -757,21 +769,29 @@ function sitePage(){
     render();
   });
 
-  // 기록된 날짜 빠른 선택 (최근 10개)
+  // 기록된 날짜 빠른 선택 (최근 10개) - 실사/판매 저장 상태 표시
   const recDates=[...new Set(state.db.site.map(r=>r.date))].sort((a,b)=>b.localeCompare(a)).slice(0,10);
   const datePills=el('div',{style:{display:'flex',gap:'4px',flexWrap:'wrap',padding:'4px 0 2px'}},
     ...recDates.map(date=>{
-      const btn=el('button',{class:'pill'+(date===state.selDate?' on':''),style:{fontSize:'10px'}},fmtDate(date));
+      const recs=toArr(state.db.site).filter(r=>r.date===date);
+      const hasSales=recs.some(r=>parseInt(r.sales)>0);
+      const label=fmtDate(date)+(hasSales?' 🛒':'');
+      const btn=el('button',{class:'pill'+(date===state.selDate?' on':''),style:{fontSize:'10px'}},label);
       btn.addEventListener('click',()=>{state.selDate=date;state.draft=initDraft(date);render();});
       return btn;
     })
   );
 
   // 저장 버튼 두 개
-  const invSaveBtn=el('button',{class:'sbtn'},`📋 실사 저장`);
+  const invSaveBtn=el('button',{class:'sbtn'},`📋 실사 저장 (${fmtDateFull(state.selDate)})`);
   invSaveBtn.addEventListener('click',saveInventory);
-  const salesSaveBtn=el('button',{class:'sbtn teal',style:{marginTop:'6px'}},`🛒 판매 저장`);
+  const salesSaveBtn=el('button',{class:'sbtn teal',style:{marginTop:'6px'}},`🛒 판매 저장 (${fmtDateFull(state.selDate)})`);
   salesSaveBtn.addEventListener('click',saveSales);
+
+  // 선택 날짜 실사/판매 저장 여부
+  const selDateRecs=toArr(state.db.site).filter(r=>r.date===state.selDate);
+  const selDateHasInv=selDateRecs.length>0;
+  const selDateHasSales=selDateRecs.some(r=>parseInt(r.sales)>0);
 
   // 상단 실재고 카드
   const topCard=el('div',{class:'card'},
@@ -792,10 +812,20 @@ function sitePage(){
     currentStockTable(),
     state.showInitSite?siteInitCard():null,
     dateCard,
-    el('div',{class:'card'},el('div',{class:'ct'},'📋 실사 입력 (보관함/인포서랍)')),
+    el('div',{class:'card'},
+      el('div',{class:'ct'},
+        `📋 실사 입력 — ${fmtDateFull(state.selDate)}`,
+        selDateHasInv?el('span',{style:{fontSize:'10px',color:'var(--ok)',fontWeight:'600'}},'✓ 저장됨'):null
+      )
+    ),
     inventoryTable(),
     invSaveBtn,
-    el('div',{class:'card',style:{marginTop:'4px'}},el('div',{class:'ct'},'🛒 판매 입력 및 검증')),
+    el('div',{class:'card',style:{marginTop:'4px'}},
+      el('div',{class:'ct'},
+        `🛒 판매 입력 — ${fmtDateFull(state.selDate)}`,
+        selDateHasSales?el('span',{style:{fontSize:'10px',color:'var(--ok)',fontWeight:'600'}},'✓ 저장됨'):null
+      )
+    ),
     salesTable(),
     salesSaveBtn
   );
