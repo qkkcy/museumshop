@@ -225,7 +225,7 @@ function toArr(v){if(!v)return[];if(Array.isArray(v))return v;return Object.valu
 
 function loadDb(){
   try{const r=localStorage.getItem(KEY);
-    if(r){const d=JSON.parse(r);return{site:[],wh:[],siteInit:{},whInit:{},products:[],...d,site:toArr(d.site),wh:toArr(d.wh),products:toArr(d.products)};}
+    if(r){const d=JSON.parse(r);return{site:[],wh:[],siteInit:{},whInit:{},products:[],dayNotes:{},...d,site:toArr(d.site),wh:toArr(d.wh),products:toArr(d.products)};}
   }catch{}
   const migrated=migrateV4();
   if(migrated){
@@ -247,7 +247,7 @@ db_ref.on('value', snapshot => {
   const remoteStr = JSON.stringify(data);
   const localStr = JSON.stringify(state.db);
   if(remoteStr !== localStr){
-    state.db = {site:[],wh:[],siteInit:{},whInit:{},products:[],
+    state.db = {site:[],wh:[],siteInit:{},whInit:{},products:[],dayNotes:{},
       ...data,
       site:toArr(data.site),
       wh:toArr(data.wh),
@@ -333,11 +333,13 @@ function verify(pid,date,storage,drawer){
   const prevRec=getPrevRec(pid,date);
   if(!prevRec)return{ok:null,actual,expected:null,isFirst:true};
   const prevTotal=s+(parseInt(getS(prevRec))||0)+(parseInt(getD(prevRec))||0);
-  // 당일 반입 포함: prevRec 날짜 이후(당일 포함) ~ 오늘까지 반입
+  // 당일반입 포함: prevRec 날짜 당일부터 오늘까지 반입 합산
   const transfer=toArr(state.db.wh)
     .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date>=prevRec.date&&r.date<=date)
     .reduce((s,r)=>s+(parseInt(r.qty)||0),0);
-  const expected=prevTotal-(parseInt(prevRec.sales)||0)+transfer;
+  // 총출고 = 판매 + 증정 + 폐기
+  const prevTotalOut=(parseInt(prevRec.sales)||0)+toArr(prevRec.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
+  const expected=prevTotal-prevTotalOut+transfer;
   return{ok:actual===expected,actual,expected,transfer,prevDate:prevRec.date,prevTotal,prevSales:parseInt(prevRec.sales)||0};
 }
 
@@ -360,12 +362,46 @@ function exportSite(){
       샘플:r.sample||0,
       실사보관함:getS(r)??'',실사인포서랍:getD(r)??'',
       실사합계:total??'',판매수량:r.sales||0,
+      증정수량:toArr(r.outgoing||[]).filter(o=>o.type==='증정').reduce((s,o)=>s+(parseInt(o.qty)||0),0)||'',
+      폐기수량:toArr(r.outgoing||[]).filter(o=>o.type==='폐기').reduce((s,o)=>s+(parseInt(o.qty)||0),0)||'',
+      기타수량:toArr(r.outgoing||[]).filter(o=>o.type==='기타').reduce((s,o)=>s+(parseInt(o.qty)||0),0)||'',
+      총출고:((r.sales||0)+toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0))||'',
       검증:v?(v.isFirst?'첫기록':v.ok?'일치':`불일치(${v.actual-v.expected>0?'+':''}${v.actual-v.expected})`):'-',
+      불일치메모:r.verifyNote||'',
       비고:r.note||''
     };
   });
-  dlCSV(toCSV(rows,['날짜','담당자','카테고리','제품명','샘플','실사보관함','실사인포서랍','실사합계','판매수량','검증','비고']),`현장재고_${toDay()}.csv`);
-  showToast(`📥 현장재고 ${rows.length}건 다운로드`);
+  // 증정/기타 출고 별도 테이블
+  const giftRows=[];
+  site.forEach(r=>{
+    toArr(r.outgoing||[]).forEach(o=>{
+      if((parseInt(o.qty)||0)>0){
+        giftRows.push({날짜:r.date,카테고리:r.cat,제품명:r.productName,유형:o.type,수량:parseInt(o.qty)||0,비고메모:o.note||''});
+      }
+    });
+  });
+
+  // 두 섹션을 하나의 CSV로 (구분선 포함)
+  const mainHdrs=['날짜','담당자','카테고리','제품명','샘플','실사보관함','실사인포서랍','실사합계','판매수량','증정수량','폐기수량','기타수량','총출고','검증','불일치메모','비고'];
+  const giftHdrs=['날짜','카테고리','제품명','유형','수량','비고메모'];
+  const emptyMain={};mainHdrs.forEach(h=>{emptyMain[h]='';});
+  const sep={...emptyMain,'날짜':'───증정/기타출고내역───'};
+
+  if(giftRows.length>0){
+    // 증정 행을 mainHdrs에 맞게 변환해서 합치기
+    const giftAsMain=giftRows.map(r=>{
+      const row={...emptyMain};
+      row['날짜']=r['날짜'];row['카테고리']=r['카테고리'];row['제품명']=r['제품명'];
+      row['유형']=r['유형'];row['수량']=r['수량'];row['비고메모']=r['비고메모'];
+      return row;
+    });
+    const allHdrs=[...mainHdrs,'유형','수량','비고메모'];
+    const allRows=[...rows,sep,...giftAsMain];
+    dlCSV(toCSV(allRows,allHdrs),`현장재고_${toDay()}.csv`);
+  } else {
+    dlCSV(toCSV(rows,mainHdrs),`현장재고_${toDay()}.csv`);
+  }
+  showToast(`📥 현장재고 ${rows.length}건${giftRows.length>0?' + 증정'+giftRows.length+'건':''} 다운로드`);
 }
 
 function exportWh(){
@@ -465,6 +501,8 @@ let state={
   selDate:toDay(),
   draft:{},
   showInitSite:false,initSiteVals:{},
+  verifyMemo:{}, // {pid: '메모내용'} - 검증 불일치 메모
+  verifyMemoOpen:{}, // {pid: true/false} - 메모 입력창 열림 여부
   wh:{date:toDay(),cat:'굿즈',pid:'',type:'창고반입',qty:'',note:''},
   editWhId:null,
   showInitWh:false,initWhVals:{},
@@ -505,10 +543,13 @@ function initDraft(date){
     const rec=getDateRec(prod.id,date);
     if(rec){
       // 기존 저장된 기록 → 실사값 + 판매값 모두 로드
-      draft[prod.id]={storage:String(getS(rec)??''),drawer:String(getD(rec)??''),sales:parseInt(rec.sales)||0,dirty:false,saved:true,salesSaved:true};
+      draft[prod.id]={storage:String(getS(rec)??''),drawer:String(getD(rec)??''),
+        sales:parseInt(rec.sales)||0,
+        outgoing:toArr(rec.outgoing||[]),
+        dirty:false,saved:true,salesSaved:true};
       return;
     }
-    draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false,saved:false,salesSaved:false};
+    draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false,saved:false,salesSaved:false};
   });
   return draft;
 }
@@ -542,23 +583,24 @@ function saveSales(){
     const d=state.draft[r.productId];
     if(!d)return r;
     updated=true;
-    return{...r,sales:d.sales||0,ts:Date.now()};
+    return{...r,sales:d.sales||0,outgoing:d.outgoing||[],ts:Date.now()};
   });
-  // 실사 기록 없는데 판매만 있는 경우 추가
+  // 실사 기록 없는데 출고만 있는 경우 추가
   getProds().forEach(prod=>{
     const d=state.draft[prod.id];
-    if(!d||!d.sales)return;
+    const hasOut=d&&(d.sales>0||(d.outgoing&&d.outgoing.length>0));
+    if(!hasOut)return;
     const exists=newSite.find(r=>r.date===date&&r.productId===prod.id);
     if(!exists){
       newSite.push({id:uid(),date,cat:prod.cat,productId:prod.id,productName:prod.name,
-        sample:prod.sample,storage:'0',drawer:'0',sales:d.sales,note:'',ts:Date.now()});
+        sample:prod.sample,storage:'0',drawer:'0',sales:d.sales||0,outgoing:d.outgoing||[],note:'',ts:Date.now()});
       updated=true;
     }
   });
   if(!updated){showToast('먼저 실사를 저장해주세요');return;}
   persist({...state.db,site:newSite});
   state.draft=initDraft(date);
-  showToast('✓ 판매 저장됨');
+  showToast('✓ 출고 저장됨');
 }
 
 // ── DOM ──────────────────────────────────────────────────────
@@ -593,6 +635,64 @@ function vBadge(v){
   return el('span',{class:'ver'},`${diff>0?'+':''}${diff}`);
 }
 
+function vBadgeMemo(v,pid,date){
+  if(!v||v.isFirst)return el('span',{class:'vna'},'첫기록');
+  if(v.ok)return el('span',{class:'vok'},'✅');
+  const diff=v.actual-v.expected;
+  const memoKey=date+'_'+pid;
+  const isOpen=!!state.verifyMemoOpen[memoKey];
+  // 저장된 메모 불러오기
+  const savedRec=getDateRec(pid,date);
+  const savedMemo=savedRec?.verifyNote||'';
+
+  const wrap=el('div',{style:{display:'flex',alignItems:'center',gap:'4px',flexWrap:'wrap'}});
+  const badge=el('span',{class:'ver'},`${diff>0?'+':''}${diff}`);
+  const qBtn=el('button',{style:{
+    background:'none',border:'1px solid var(--acc)',borderRadius:'50%',
+    width:'16px',height:'16px',fontSize:'10px',cursor:'pointer',
+    color:'var(--acc)',lineHeight:'1',padding:'0',flexShrink:'0',
+    display:'inline-flex',alignItems:'center',justifyContent:'center'
+  }},savedMemo?'📝':'?');
+  qBtn.addEventListener('click',e=>{
+    e.stopPropagation();
+    state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:!isOpen};
+    render();
+  });
+  wrap.append(badge,qBtn);
+
+  if(isOpen){
+    const memoInp=el('input',{type:'text',
+      style:{width:'100%',marginTop:'4px',border:'1px solid var(--bd)',borderRadius:'6px',
+        padding:'4px 7px',fontSize:'11px',outline:'none'},
+      placeholder:'불일치 이유 메모...',
+      value:state.verifyMemo[memoKey]!==undefined?state.verifyMemo[memoKey]:savedMemo
+    });
+    memoInp.addEventListener('input',e=>{
+      state.verifyMemo={...state.verifyMemo,[memoKey]:e.target.value};
+    });
+    const saveBtn=el('button',{style:{
+      marginTop:'3px',width:'100%',padding:'3px',fontSize:'10px',
+      background:'var(--p)',color:'#fff',border:'none',borderRadius:'5px',cursor:'pointer'
+    }},'저장');
+    saveBtn.addEventListener('click',()=>{
+      const note=state.verifyMemo[memoKey]||'';
+      // 해당 날짜 레코드의 verifyNote 업데이트
+      const newSite=toArr(state.db.site).map(r=>{
+        if(r.productId===pid&&r.date===date)return{...r,verifyNote:note,ts:Date.now()};
+        return r;
+      });
+      persist({...state.db,site:newSite});
+      state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:false};
+      state.verifyMemo={...state.verifyMemo,[memoKey]:undefined};
+      showToast('✓ 메모 저장됨');
+    });
+    wrap.append(el('div',{style:{width:'100%'}},memoInp,saveBtn));
+  } else if(savedMemo){
+    wrap.append(el('div',{style:{fontSize:'9px',color:'var(--acc)',marginTop:'2px',width:'100%'}},`메모: ${savedMemo}`));
+  }
+  return wrap;
+}
+
 // ── 현재 실재고 테이블 (위) ──────────────────────────────────
 function currentStockTable(){
   const prods=getProds();
@@ -617,7 +717,7 @@ function currentStockTable(){
           const hasVal=(dr&&dr.storage!==''&&dr.storage!==undefined)||(dr&&dr.drawer!==''&&dr.drawer!==undefined);
           if(!hasVal)return el('span',{style:{color:'var(--t3)',fontSize:'9px'}},'미입력');
           const v=verify(prod.id,date,dr.storage||'0',dr.drawer||'0');
-          return vBadge(v);
+          return vBadgeMemo(v,prod.id,date);
         })()
       )
     );
@@ -677,52 +777,199 @@ function inventoryTable(){
 function salesTable(){
   const prods=getProds();
   const date=state.selDate;
-  const hasSavedSales=prods.some(prod=>{
+
+  const hasSaved=prods.some(prod=>{
     const rec=getDateRec(prod.id,date);
-    return rec&&parseInt(rec.sales)>0;
+    return rec&&(parseInt(rec.sales)>0||toArr(rec.outgoing||[]).some(o=>o.qty>0));
   });
+
+  // 인라인 메모 팝업 (? 버튼 클릭 시)
+  function memoPopup(key,savedVal,onSave){
+    const isOpen=!!state._memoOpen?.[key];
+    const qBtn=el('button',{style:{
+      background:'none',border:'1px solid var(--bd)',borderRadius:'50%',
+      width:'16px',height:'16px',fontSize:'9px',cursor:'pointer',
+      color:savedVal?'var(--pm)':'var(--t3)',lineHeight:'1',padding:'0',flexShrink:'0',
+      display:'inline-flex',alignItems:'center',justifyContent:'center'
+    }},savedVal?'📝':'?');
+    qBtn.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(!state._memoOpen)state._memoOpen={};
+      state._memoOpen[key]=!isOpen;
+      render();
+    });
+    if(!isOpen)return qBtn;
+    const inp=el('input',{type:'text',
+      style:{width:'100%',marginTop:'3px',border:'1px solid var(--bd)',borderRadius:'5px',
+        padding:'3px 7px',fontSize:'10px',outline:'none'},
+      placeholder:'비고 메모...',
+      value:state._memoVals?.[key]!==undefined?state._memoVals[key]:savedVal
+    });
+    inp.addEventListener('input',e=>{
+      if(!state._memoVals)state._memoVals={};
+      state._memoVals[key]=e.target.value;
+    });
+    const saveBtn=el('button',{style:{
+      marginTop:'2px',width:'100%',padding:'2px',fontSize:'9px',
+      background:'var(--p)',color:'#fff',border:'none',borderRadius:'4px',cursor:'pointer'
+    }},'저장');
+    saveBtn.addEventListener('click',()=>{
+      const val=(state._memoVals?.[key])||'';
+      onSave(val);
+      if(!state._memoOpen)state._memoOpen={};
+      state._memoOpen[key]=false;
+      if(!state._memoVals)state._memoVals={};
+      state._memoVals[key]=undefined;
+    });
+    const wrap=el('div',{style:{width:'100%'}},inp,saveBtn);
+    return el('div',{style:{display:'flex',flexDirection:'column',alignItems:'flex-start'}},qBtn,wrap);
+  }
+
+  function qtyCtrl(val,onMinus,onPlus,color){
+    const mn=el('button',{class:'t-btn'},'−');mn.addEventListener('click',onMinus);
+    const pl=el('button',{class:'t-btn'},'+');pl.addEventListener('click',onPlus);
+    const num=el('span',{class:'t-num',style:{color:color||'var(--acc)'}},String(val||0));
+    return el('div',{class:'t-sales'},mn,num,pl);
+  }
+
   const thead=el('thead',null,el('tr',null,
     el('th',null,'제품명'),
     el('th',null,'실사합계'),
-    el('th',null,'판매'),
+    el('th',{style:{color:'#FFE082'}},'판매'),
+    el('th',{style:{color:'#C8E6C9'}},'증정'),
+    el('th',{style:{color:'#FFCDD2'}},'폐기'),
     el('th',null,'검증')
   ));
+
   const rows=prods.map(prod=>{
-    const d=state.draft[prod.id]||{storage:'',drawer:'',sales:0};
+    const d=state.draft[prod.id]||{storage:'',drawer:'',sales:0,outgoing:[]};
+    const outgoing=d.outgoing||[];
+    const giftEntry=outgoing.find(o=>o.type==='증정')||{qty:0,note:''};
+    const giftQty=parseInt(giftEntry.qty)||0;
+    const wasteEntry=outgoing.find(o=>o.type==='폐기')||{qty:0,note:''};
+    const wasteQty=parseInt(wasteEntry.qty)||0;
     const total=getTotal(d.storage,d.drawer,prod);
     const v=(d.storage!==''||d.drawer!=='')?verify(prod.id,date,d.storage||'0',d.drawer||'0'):null;
     const bg=CAT_BG[prod.cat];
     const rec=getDateRec(prod.id,date);
-    const savedSales=rec?parseInt(rec.sales)||0:0;
-    const mn=el('button',{class:'t-btn'},'−');
-    mn.addEventListener('click',()=>{
-      if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false};
-      state.draft[prod.id].sales=Math.max(0,(state.draft[prod.id].sales||0)-1);
-      state.draft[prod.id].dirty=true;
-      render();
+
+    // 증정 메모 저장
+    const giftMemoKey=date+'_gift_'+prod.id;
+    const savedGiftMemo=giftEntry.note||'';
+    const giftMemo=memoPopup(giftMemoKey,savedGiftMemo,(val)=>{
+      // 증정 메모를 outgoing에 저장
+      if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+      const og=state.draft[prod.id].outgoing||[];
+      const gi=og.findIndex(o=>o.type==='증정');
+      if(gi>=0)og[gi].note=val;else og.push({type:'증정',qty:giftQty,note:val});
+      state.draft[prod.id].outgoing=og;
+      // 즉시 저장
+      const newSite=toArr(state.db.site).map(r=>{
+        if(r.productId!==prod.id||r.date!==date)return r;
+        const existOg=toArr(r.outgoing||[]);
+        const gi2=existOg.findIndex(o=>o.type==='증정');
+        if(gi2>=0)existOg[gi2].note=val;else existOg.push({type:'증정',qty:giftQty,note:val});
+        return{...r,outgoing:existOg,ts:Date.now()};
+      });
+      persist({...state.db,site:newSite});showToast('✓ 증정 메모 저장');
     });
-    const pl=el('button',{class:'t-btn'},'+');
-    pl.addEventListener('click',()=>{
-      if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false};
-      state.draft[prod.id].sales=(state.draft[prod.id].sales||0)+1;
-      state.draft[prod.id].dirty=true;
-      render();
+
+    // 폐기 메모 저장
+    const wasteMemoKey=date+'_waste_'+prod.id;
+    const savedWasteMemo=wasteEntry.note||'';
+    const wasteMemo=memoPopup(wasteMemoKey,savedWasteMemo,(val)=>{
+      if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+      const og=state.draft[prod.id].outgoing||[];
+      const wi=og.findIndex(o=>o.type==='폐기');
+      if(wi>=0)og[wi].note=val;else og.push({type:'폐기',qty:wasteQty,note:val});
+      state.draft[prod.id].outgoing=og;
+      const newSite=toArr(state.db.site).map(r=>{
+        if(r.productId!==prod.id||r.date!==date)return r;
+        const existOg=toArr(r.outgoing||[]);
+        const wi2=existOg.findIndex(o=>o.type==='폐기');
+        if(wi2>=0)existOg[wi2].note=val;else existOg.push({type:'폐기',qty:wasteQty,note:val});
+        return{...r,outgoing:existOg,ts:Date.now()};
+      });
+      persist({...state.db,site:newSite});showToast('✓ 폐기 메모 저장');
     });
-    const salesNum=el('span',{class:'t-num'},String(d.sales||0));
+
+    // 판매 +/-
+    const salesCtrl=qtyCtrl(d.sales,
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        state.draft[prod.id].sales=Math.max(0,(state.draft[prod.id].sales||0)-1);
+        state.draft[prod.id].dirty=true;render();
+      },
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        state.draft[prod.id].sales=(state.draft[prod.id].sales||0)+1;
+        state.draft[prod.id].dirty=true;render();
+      },'var(--acc)'
+    );
+
+    // 증정 +/-
+    const giftCtrl=qtyCtrl(giftQty,
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        const og=state.draft[prod.id].outgoing||[];
+        const gi=og.findIndex(o=>o.type==='증정');
+        if(gi>=0)og[gi].qty=Math.max(0,(parseInt(og[gi].qty)||0)-1);
+        else og.push({type:'증정',qty:0,note:''});
+        state.draft[prod.id].outgoing=og;state.draft[prod.id].dirty=true;render();
+      },
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        const og=state.draft[prod.id].outgoing||[];
+        const gi=og.findIndex(o=>o.type==='증정');
+        if(gi>=0)og[gi].qty=(parseInt(og[gi].qty)||0)+1;
+        else og.push({type:'증정',qty:1,note:''});
+        state.draft[prod.id].outgoing=og;state.draft[prod.id].dirty=true;render();
+      },'var(--pm)'
+    );
+
+    // 폐기 +/-
+    const wasteCtrl=qtyCtrl(wasteQty,
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        const og=state.draft[prod.id].outgoing||[];
+        const wi=og.findIndex(o=>o.type==='폐기');
+        if(wi>=0)og[wi].qty=Math.max(0,(parseInt(og[wi].qty)||0)-1);
+        else og.push({type:'폐기',qty:0,note:''});
+        state.draft[prod.id].outgoing=og;state.draft[prod.id].dirty=true;render();
+      },
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        const og=state.draft[prod.id].outgoing||[];
+        const wi=og.findIndex(o=>o.type==='폐기');
+        if(wi>=0)og[wi].qty=(parseInt(og[wi].qty)||0)+1;
+        else og.push({type:'폐기',qty:1,note:''});
+        state.draft[prod.id].outgoing=og;state.draft[prod.id].dirty=true;render();
+      },'var(--er)'
+    );
+
+    const savedLabel=rec&&(parseInt(rec.sales)>0||toArr(rec.outgoing||[]).some(o=>o.qty>0))&&!d?.dirty
+      ?el('div',{style:{fontSize:'8px',color:'var(--ok)',marginTop:'1px'}},
+          `✓ 판매${rec.sales||0}개`+(giftQty>0?` 증정${giftQty}개`:'')+(wasteQty>0?` 폐기${wasteQty}개`:'')
+        ):null;
+
     return el('tr',null,
       el('td',{style:{backgroundColor:bg}},
-        el('div',null,prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
-        savedSales>0&&!state.draft[prod.id]?.dirty
-          ?el('div',{style:{fontSize:'8px',color:'var(--ok)',marginTop:'1px'}},`✓ 저장된 판매: ${savedSales}개`)
-          :null
+        el('div',null,prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),savedLabel
       ),
       el('td',{style:{backgroundColor:bg},class:'auto-c'},total!=null?total:'-'),
-      el('td',{style:{backgroundColor:bg}},el('div',{class:'t-sales'},mn,salesNum,pl)),
+      el('td',{style:{backgroundColor:bg}},salesCtrl),
+      el('td',{style:{backgroundColor:bg}},
+        el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:'2px'}},giftCtrl,giftMemo)
+      ),
+      el('td',{style:{backgroundColor:bg}},
+        el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:'2px'}},wasteCtrl,wasteMemo)
+      ),
       el('td',{style:{backgroundColor:bg}},vBadge(v))
     );
   });
+
   return el('div',null,
-    hasSavedSales?el('div',{class:'ibox info',style:{margin:'0 12px 4px'}},'🛒 저장된 판매 내역이 있어요. 수정 후 판매 저장을 누르세요.'):null,
+    hasSaved?el('div',{class:'ibox info',style:{margin:'4px 12px'}},'저장된 출고 내역이 있어요. 수정 후 출고 저장을 누르세요.'):null,
     el('div',{class:'tbl-wrap'},el('table',{class:'tbl'},thead,el('tbody',null,...rows)))
   );
 }
@@ -782,7 +1029,7 @@ function sitePage(){
   // 저장 버튼 두 개
   const invSaveBtn=el('button',{class:'sbtn'},`📋 실사 저장 (${fmtDateFull(state.selDate)})`);
   invSaveBtn.addEventListener('click',saveInventory);
-  const salesSaveBtn=el('button',{class:'sbtn teal',style:{marginTop:'6px'}},`🛒 판매 저장 (${fmtDateFull(state.selDate)})`);
+  const salesSaveBtn=el('button',{class:'sbtn teal',style:{marginTop:'6px'}},`🛒 출고 저장 (${fmtDateFull(state.selDate)})`);
   salesSaveBtn.addEventListener('click',saveSales);
 
   // 선택 날짜 실사/판매 저장 여부
