@@ -78,9 +78,7 @@ input,select,button{font-family:inherit}
 .date-bar{display:flex;align-items:center;gap:8px;padding:8px 12px 0}
 .date-inp{border:1px solid var(--bd);border-radius:var(--r2);padding:6px 8px;font-size:12px;background:#fff;color:var(--t);outline:none;flex:1}
 .date-inp:focus{border-color:var(--p)}
-.staff-wrap{display:flex;gap:4px;flex-shrink:0}
-.staff-btn{padding:6px 9px;border:1.5px solid var(--bd);border-radius:var(--r2);background:#fff;font-size:11px;cursor:pointer;color:var(--t2)}
-.staff-btn.on{border-color:var(--p);background:var(--pl);color:var(--p);font-weight:600}
+/* staff CSS 제거됨 */
 /* Tables */
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 12px 8px}
 .tbl{border-collapse:collapse;width:100%;font-size:11px}
@@ -172,7 +170,7 @@ const PRODUCTS=[
   {id:"P002",cat:"포장",name:"종이백 중",sample:0,drawer:false},
   {id:"P003",cat:"포장",name:"종이백 대",sample:0,drawer:false},
 ];
-const CATS=["굿즈","도서","포장"],STAFF=["은혜","채영"],KEY="museum_v6";
+const CATS=["굿즈","도서","포장"],KEY="museum_v6";
 const CAT_ROW={굿즈:'row-goods',도서:'row-book',포장:'row-pack'};
 const CAT_BG={굿즈:'#F2FAF2',도서:'#EEF4FD',포장:'#FDFBEE'};
 const bgS=cat=>({backgroundColor:CAT_BG[cat]});
@@ -276,21 +274,21 @@ function getTotal(storage,drawer,prod){
 
 // 최신 실사 기록 (date 이전 포함)
 function getLatestRec(pid,date){
-  return state.db.site
+  return toArr(state.db.site)
     .filter(r=>r.productId===pid&&r.date<=date)
     .sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts)[0]||null;
 }
 
 // 특정 날짜의 기록
 function getDateRec(pid,date){
-  return state.db.site
+  return toArr(state.db.site)
     .filter(r=>r.productId===pid&&r.date===date)
     .sort((a,b)=>b.ts-a.ts)[0]||null;
 }
 
 // 이전 실사 기록 (date 미만)
 function getPrevRec(pid,date){
-  return state.db.site
+  return toArr(state.db.site)
     .filter(r=>r.productId===pid&&r.date<date)
     .sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts)[0]||null;
 }
@@ -310,20 +308,25 @@ function getCurrentStock(pid){
   const s=typeof prod.sample==='number'?prod.sample:0;
   const rec=getLatestRec(pid,toDay());
   if(rec){
+    // 최신 실사일 다음날부터 오늘까지 반입만 집계 (당일 이중계산 방지)
     const transfer=getTransfers(pid,rec.date,toDay());
     const stor=parseInt(getS(rec))||0;
     const draw=parseInt(getD(rec))||0;
     return{sample:s,storage:stor,drawer:draw,total:s+stor+draw,date:rec.date,transfer};
   }
+  // 실사 기록 없음 → 기준재고 사용. 반입은 앱 운영 시작일(기준재고 세팅 이후)부터만
   const init=state.db.siteInit[pid]||{};
-  const transfer=getTransfers(pid,'2000-01-01',toDay());
+  // 기준재고가 설정된 경우 '0001-01-01' 대신 초기 날짜 이후부터 집계
+  // siteInit에 날짜 정보가 없으므로 전체 기간 집계(기존 동작 유지, 단 명시적으로 표기)
+  const transfer=getTransfers(pid,'0001-01-01',toDay());
   const stor=init.storage||0;
   const draw=init.drawer||0;
   return{sample:s,storage:stor,drawer:draw,total:s+stor+draw,date:null,transfer};
 }
 
 // 검증: actual = 오늘 실사합계(샘플+보관함+인포서랍)
-//        expected = 전날합계 + 전날이후반입 - 전날판매
+//        expected = 이전실사합계 - 이전실사출고 + (이전실사일 다음날~오늘) 반입
+// ※ prevRec.date 당일 반입은 이미 prevTotal에 반영된 실사이므로 제외(다음날부터 집계)
 function verify(pid,date,storage,drawer){
   const prod=getProds().find(p=>p.id===pid);
   if(!prod)return null;
@@ -333,14 +336,69 @@ function verify(pid,date,storage,drawer){
   const prevRec=getPrevRec(pid,date);
   if(!prevRec)return{ok:null,actual,expected:null,isFirst:true};
   const prevTotal=s+(parseInt(getS(prevRec))||0)+(parseInt(getD(prevRec))||0);
-  // 당일반입 포함: prevRec 날짜 당일부터 오늘까지 반입 합산
+  // 이전 실사일 다음날부터 오늘 실사일까지 반입 합산 (당일 반입 이중계산 방지)
   const transfer=toArr(state.db.wh)
-    .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date>=prevRec.date&&r.date<=date)
+    .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date>prevRec.date&&r.date<=date)
     .reduce((s,r)=>s+(parseInt(r.qty)||0),0);
   // 총출고 = 판매 + 증정 + 폐기
   const prevTotalOut=(parseInt(prevRec.sales)||0)+toArr(prevRec.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
   const expected=prevTotal-prevTotalOut+transfer;
   return{ok:actual===expected,actual,expected,transfer,prevDate:prevRec.date,prevTotal,prevSales:parseInt(prevRec.sales)||0};
+}
+
+// 누적 최종검증: 기준재고 + 누적반입 - 누적출고 = 이론재고, 이론재고 vs 최신실사합계 비교
+// 반환: {ok, actual, theory, diff, totalIn, totalOut, notes}
+// notes: 불일치가 있는 날짜의 verifyNote 목록 (메모 모아보기용)
+function getCumulativeVerify(pid){
+  const prod=getProds().find(p=>p.id===pid);
+  if(!prod)return null;
+  const s=typeof prod.sample==='number'?prod.sample:0;
+  const latestRec=getLatestRec(pid,toDay());
+  if(!latestRec)return null;
+
+  // 실사 합계 (최신)
+  const actual=s+(parseInt(getS(latestRec))||0)+(parseInt(getD(latestRec))||0);
+
+  // 기준재고 (siteInit)
+  const init=state.db.siteInit[pid]||{};
+  const initStock=s+(parseInt(init.storage)||0)+(parseInt(init.drawer)||0);
+
+  // 누적 반입 — 최신 실사일까지만 (실사 이후 반입은 아직 실사 전이므로 제외)
+  const totalIn=toArr(state.db.wh)
+    .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date<=latestRec.date)
+    .reduce((acc,r)=>acc+(parseInt(r.qty)||0),0);
+
+  // 누적 출고 — 최신 실사일까지의 실사 기록만, 날짜별 최신 1개만
+  const siteRecs=toArr(state.db.site).filter(r=>r.productId===pid&&r.date<=latestRec.date);
+  const dedupedRecs=Object.values(
+    siteRecs.reduce((map,r)=>{
+      if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;
+      return map;
+    },{})
+  );
+  const totalOut=dedupedRecs.reduce((acc,r)=>{
+    const sales=parseInt(r.sales)||0;
+    const og=toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
+    return acc+sales+og;
+  },0);
+
+  // 이론재고 = (기준재고 storage+drawer) + 누적반입 - 누적출고
+  // ※ 샘플은 actual/theory 양쪽에 동일하게 포함되어 diff 계산 시 상쇄됨
+  const theory=initStock+totalIn-totalOut;
+  const diff=actual-theory;
+
+  // 불일치 비고 누적 수집: 최신 실사일 이하 레코드 중 verifyNote가 있는 것만, 날짜별 최신 1개
+  const notes=Object.values(
+    toArr(state.db.site)
+      .filter(r=>r.productId===pid&&r.verifyNote&&r.date<=latestRec.date)
+      .reduce((map,r)=>{
+        if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;
+        return map;
+      },{})
+  ).sort((a,b)=>b.date.localeCompare(a.date))
+   .map(r=>({date:r.date,note:r.verifyNote}));
+
+  return{ok:diff===0,actual,theory,diff,totalIn,totalOut,initStock,notes};
 }
 
 // ── CSV ─────────────────────────────────────────────────────
@@ -351,7 +409,11 @@ function toCSV(rows,hdrs){
 function dlCSV(csv,name){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=name;a.click();}
 
 function exportSite(){
-  const site=toArr(state.db.site).sort((a,b)=>a.date.localeCompare(b.date)||a.cat.localeCompare(b.cat));
+  // 중복 레코드 제거 후 정렬
+  const raw=toArr(state.db.site).sort((a,b)=>b.ts-a.ts);
+  const seen={};
+  const site=raw.filter(r=>{const k=r.productId+'_'+r.date;if(seen[k])return false;seen[k]=true;return true;})
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.cat.localeCompare(b.cat));
   if(site.length===0){showToast('내보낼 데이터가 없어요');return;}
   const rows=site.map(r=>{
     const prod=getProds().find(p=>p.id===r.productId);
@@ -416,7 +478,6 @@ function exportWh(){
 function exportAll(){
   const allProds=getProds();
   const prods=allProds;
-  const site=toArr(state.db.site).sort((a,b)=>a.date.localeCompare(b.date)||a.cat.localeCompare(b.cat));
   const wh=toArr(state.db.wh).sort((a,b)=>a.date.localeCompare(b.date));
 
   // 공통 헤더 (모든 섹션 포함)
@@ -455,7 +516,11 @@ function exportAll(){
     };
   });
 
-  // 섹션3: 현장 실사 기록 전체
+  // 섹션3: 현장 실사 기록 전체 (중복 제거)
+  const rawSite=toArr(state.db.site).sort((a,b)=>b.ts-a.ts);
+  const siteSeen={};
+  const site=rawSite.filter(r=>{const k=r.productId+'_'+r.date;if(siteSeen[k])return false;siteSeen[k]=true;return true;})
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.cat.localeCompare(b.cat));
   const siteRows=site.map(r=>{
     const prod=allProds.find(p=>p.id===r.productId);
     const total=getTotal(getS(r),getD(r),prod);
@@ -508,6 +573,9 @@ let state={
   showInitWh:false,initWhVals:{},
   // 품목관리
   formProd:null,
+  // 현재 실재고 테이블 반입 필터
+  stockYear:new Date().getFullYear(),
+  stockMonth:new Date().getMonth()+1,
 };
 
 function set(p){Object.assign(state,p);render();}
@@ -542,10 +610,10 @@ function initDraft(date){
   getProds().forEach(prod=>{
     const rec=getDateRec(prod.id,date);
     if(rec){
-      // 기존 저장된 기록 → 실사값 + 판매값 모두 로드
+      // 기존 저장된 기록 → 실사값 + 판매값 + 증정/폐기 모두 로드 (deep copy)
       draft[prod.id]={storage:String(getS(rec)??''),drawer:String(getD(rec)??''),
         sales:parseInt(rec.sales)||0,
-        outgoing:toArr(rec.outgoing||[]),
+        outgoing:toArr(rec.outgoing||[]).map(o=>({...o})),
         dirty:false,saved:true,salesSaved:true};
       return;
     }
@@ -557,16 +625,32 @@ function initDraft(date){
 // 실사 저장 (보관함/인포서랍)
 function saveInventory(){
   const date=state.selDate;
-  let newSite=[...state.db.site.filter(r=>r.date!==date)];
+  const staff='';
+  // 기존 날짜 기록 전체 수집 — 중복 레코드에서 sales/outgoing/verifyNote 병합 (데이터 손실 방지)
+  const prevRecs=toArr(state.db.site).filter(r=>r.date===date);
+  const mergedByPid={};
+  prevRecs.forEach(r=>{
+    const pid=r.productId;
+    if(!mergedByPid[pid])mergedByPid[pid]={sales:0,outgoing:[],verifyNote:''};
+    // sales는 더 큰 값 유지, outgoing은 항목이 있는 레코드 우선
+    if((parseInt(r.sales)||0)>mergedByPid[pid].sales)
+      mergedByPid[pid].sales=parseInt(r.sales)||0;
+    if(toArr(r.outgoing||[]).length>0)
+      mergedByPid[pid].outgoing=toArr(r.outgoing||[]).map(o=>({...o}));
+    if(r.verifyNote)
+      mergedByPid[pid].verifyNote=r.verifyNote;
+  });
+
+  let newSite=[...toArr(state.db.site).filter(r=>r.date!==date)];
   let savedCount=0;
   getProds().forEach(prod=>{
     const d=state.draft[prod.id];
-    if(!d||( (d.storage===''||d.storage===undefined) && (d.drawer===''||d.drawer===undefined) ))return;
-    // 판매는 기존 기록 있으면 유지, 없으면 0
-    const existRec=getDateRec(prod.id,date);
-    const sales=existRec?parseInt(existRec.sales)||0:0;
+    if(!d||((d.storage===''||d.storage===undefined)&&(d.drawer===''||d.drawer===undefined)))return;
+    const merged=mergedByPid[prod.id]||{sales:0,outgoing:[],verifyNote:''};
     newSite.push({id:uid(),date,cat:prod.cat,productId:prod.id,productName:prod.name,
-      sample:prod.sample,storage:d.storage,drawer:d.drawer,sales,note:'',ts:Date.now()});
+      sample:prod.sample,storage:d.storage,drawer:d.drawer,
+      sales:merged.sales,outgoing:merged.outgoing,
+      staff,verifyNote:merged.verifyNote,note:'',ts:Date.now()});
     savedCount++;
   });
   persist({...state.db,site:newSite});
@@ -578,13 +662,26 @@ function saveInventory(){
 function saveSales(){
   const date=state.selDate;
   let updated=false;
-  const newSite=toArr(state.db.site).map(r=>{
-    if(r.date!==date)return r;
+
+  // 중복 레코드 병합: 같은 날짜+품목의 모든 레코드를 하나로 합침
+  // 실사값은 ts 최신 레코드, sales/outgoing은 draft(현재 입력값) 사용
+  const otherRecs=toArr(state.db.site).filter(r=>r.date!==date);
+  // 해당 날짜 레코드는 pid별로 최신 1개만 남김 (나머지 중복 제거)
+  const dateRecs=toArr(state.db.site).filter(r=>r.date===date);
+  const dateDeduped=Object.values(
+    dateRecs.reduce((map,r)=>{
+      if(!map[r.productId]||r.ts>map[r.productId].ts)map[r.productId]=r;
+      return map;
+    },{})
+  );
+
+  const newSite=[...otherRecs,...dateDeduped.map(r=>{
     const d=state.draft[r.productId];
     if(!d)return r;
     updated=true;
     return{...r,sales:d.sales||0,outgoing:d.outgoing||[],ts:Date.now()};
-  });
+  })];
+
   // 실사 기록 없는데 출고만 있는 경우 추가
   getProds().forEach(prod=>{
     const d=state.draft[prod.id];
@@ -593,7 +690,7 @@ function saveSales(){
     const exists=newSite.find(r=>r.date===date&&r.productId===prod.id);
     if(!exists){
       newSite.push({id:uid(),date,cat:prod.cat,productId:prod.id,productName:prod.name,
-        sample:prod.sample,storage:'0',drawer:'0',sales:d.sales||0,outgoing:d.outgoing||[],note:'',ts:Date.now()});
+        sample:prod.sample,storage:'',drawer:'',sales:d.sales||0,outgoing:d.outgoing||[],note:'',ts:Date.now()});
       updated=true;
     }
   });
@@ -696,30 +793,173 @@ function vBadgeMemo(v,pid,date){
 // ── 현재 실재고 테이블 (위) ──────────────────────────────────
 function currentStockTable(){
   const prods=getProds();
-  const date=state.selDate;
+  const today=toDay();
+
+  // 반입 필터: 선택된 년/월
+  const selYear=state.stockYear;
+  const selMonth=state.stockMonth;
+  const mm=String(selMonth).padStart(2,'0');
+  const lastDay=new Date(selYear,selMonth,0).getDate();
+  const filterFrom=`${selYear}-${mm}-01`;
+  const filterTo=`${selYear}-${mm}-${String(lastDay).padStart(2,'0')}`;
+
+  // 반입 필터 셀렉트 (카드 헤더용으로 반환)
+  const years=[...new Set(toArr(state.db.wh).map(r=>r.date.slice(0,4)))].sort().reverse();
+  if(!years.includes(String(selYear)))years.unshift(String(selYear));
+
+  const yearSel=el('select',{class:'inp sel',style:{padding:'3px 20px 3px 6px',fontSize:'11px',height:'26px',width:'70px'}});
+  years.forEach(y=>{const o=el('option',{value:y},y+'년');if(Number(y)===selYear)o.selected=true;yearSel.append(o);});
+  yearSel.addEventListener('change',e=>{state.stockYear=Number(e.target.value);render();});
+
+  const monthSel=el('select',{class:'inp sel',style:{padding:'3px 20px 3px 6px',fontSize:'11px',height:'26px',width:'58px'}});
+  for(let m=1;m<=12;m++){const o=el('option',{value:m},m+'월');if(m===selMonth)o.selected=true;monthSel.append(o);}
+  monthSel.addEventListener('change',e=>{state.stockMonth=Number(e.target.value);render();});
+
+  currentStockTable._filterEl=el('div',{style:{display:'flex',gap:'4px',alignItems:'center'}},yearSel,monthSel);
+
+  const filterTh=el('th',null,'반입');
+  const salesTh=el('th',{style:{color:'#FFE082'}},'판매');
+
   const thead=el('thead',null,el('tr',null,
-    el('th',null,'제품명'),el('th',null,'샘플'),el('th',null,'보관함'),el('th',null,'인포서랍'),el('th',null,'합계'),el('th',null,'최근일'),el('th',null,'검증')
+    el('th',null,'제품명'),el('th',null,'샘플'),el('th',null,'보관함'),el('th',null,'인포서랍'),el('th',null,'합계'),el('th',null,'최근일'),filterTh,salesTh,el('th',null,'검증')
   ));
+
   const tbody=el('tbody',null,...prods.map(prod=>{
     const bg=CAT_BG[prod.cat];
     const st=getCurrentStock(prod.id);
     const noData=!st||st.date===null;
+
+    // 최근일 셀
+    const recentDateCell=el('span',{style:{color:'var(--t3)',fontSize:'9px'}},
+      st&&st.date?fmtDate(st.date):'기준재고'
+    );
+
+    // 반입 셀: 선택된 년/월의 반입 합계
+    const monthQty=toArr(state.db.wh)
+      .filter(r=>r.productId===prod.id&&isFieldTransfer(r.type)&&r.date>=filterFrom&&r.date<=filterTo)
+      .reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+    const monthlyCell=monthQty>0
+      ?el('span',{style:{fontSize:'11px',fontWeight:'700',color:'var(--pm)'}},`+${monthQty}`)
+      :el('span',{style:{color:'var(--t3)',fontSize:'9px'}},'-');
+
+    // 판매 셀: 선택된 년/월의 판매+출고 합계 (날짜별 최신 1개만)
+    const monthRecs=toArr(state.db.site)
+      .filter(r=>r.productId===prod.id&&r.date>=filterFrom&&r.date<=filterTo);
+    const monthDeduped=Object.values(
+      monthRecs.reduce((map,r)=>{
+        if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;
+        return map;
+      },{})
+    );
+    const monthSales=monthDeduped.reduce((acc,r)=>{
+      const sales=parseInt(r.sales)||0;
+      const og=toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
+      return acc+sales+og;
+    },0);
+    const salesCell=monthSales>0
+      ?el('span',{style:{fontSize:'11px',fontWeight:'700',color:'var(--acc)'}},`-${monthSales}`)
+      :el('span',{style:{color:'var(--t3)',fontSize:'9px'}},'-');
+
+    // 검증 셀: 누적 최종검증 (기준재고+반입-출고 vs 실사합계)
+    const verifyCell=(()=>{
+      const selDate=state.selDate;
+      const draft=state.draft[prod.id];
+
+      // 실사 입력 중(미저장)이면 실시간 검증 (기존 방식 유지)
+      const hasUnsaved=draft&&!draft.saved&&(draft.storage!==''&&draft.storage!==undefined);
+      if(hasUnsaved){
+        const v=verify(prod.id,selDate,draft.storage||'0',draft.drawer||'0');
+        return vBadgeMemo(v,prod.id,selDate);
+      }
+
+      // 누적 최종검증
+      const cv=getCumulativeVerify(prod.id);
+      if(!cv)return el('span',{style:{color:'var(--t3)',fontSize:'9px'}},'미입력');
+
+      const wrap=el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:'2px'}});
+
+      if(cv.ok){
+        wrap.append(el('span',{class:'vok'},'✅'));
+        // 정상이어도 과거 비고가 있으면 표시 (누적 확인용)
+        if(cv.notes.length>0){
+          wrap.append(el('div',{style:{width:'100%',height:'0.5px',background:'var(--bd)',margin:'2px 0'}}));
+          cv.notes.slice(0,3).forEach(n=>{
+            const noteKey=prod.id+'_note_'+n.date;
+            const isExpanded=!!state._noteExpanded?.[noteKey];
+            const chip=el('div',{style:{fontSize:'8px',color:'var(--t3)',background:'var(--surf2)',
+              padding:'2px 6px',borderRadius:'6px',whiteSpace:'nowrap',cursor:'pointer',fontWeight:'500'}},`📝 ${fmtDate(n.date)}`);
+            chip.addEventListener('click',e=>{e.stopPropagation();if(!state._noteExpanded)state._noteExpanded={};state._noteExpanded[noteKey]=!isExpanded;render();});
+            const chipWrap=el('div',{style:{width:'100%'}},chip);
+            if(isExpanded)chipWrap.append(el('div',{style:{fontSize:'9px',color:'var(--t2)',background:'var(--surf2)',border:'1px solid var(--bd)',padding:'4px 7px',borderRadius:'6px',marginTop:'2px',wordBreak:'break-all',whiteSpace:'normal',lineHeight:'1.5'}},n.note||'(내용 없음)'));
+            wrap.append(chipWrap);
+          });
+          if(cv.notes.length>3)
+            wrap.append(el('span',{style:{fontSize:'8px',color:'var(--t3)'}},`+${cv.notes.length-3}건`));
+        }
+      } else {
+        // 불일치: 차이값 뱃지 + 누적 비고 표시
+        const diffStr=(cv.diff>0?'+':'')+cv.diff;
+        const debugKey=prod.id+'_debug';
+        const isDebugOpen=!!state._noteExpanded?.[debugKey];
+        const badge=el('span',{class:'ver',style:{cursor:'pointer'}},diffStr);
+        badge.addEventListener('click',e=>{
+          e.stopPropagation();
+          if(!state._noteExpanded)state._noteExpanded={};
+          state._noteExpanded[debugKey]=!isDebugOpen;
+          render();
+        });
+        badge.title=`탭하면 계산 내역 표시`;
+        wrap.append(badge);
+        if(isDebugOpen){
+          wrap.append(el('div',{style:{
+            fontSize:'8px',color:'var(--t)',background:'#f0f0f0',
+            padding:'4px 6px',borderRadius:'5px',marginTop:'2px',
+            wordBreak:'break-all',whiteSpace:'normal',maxWidth:'110px',lineHeight:'1.6',
+            textAlign:'left'
+          }},
+            `실사: ${cv.actual}`,el('br'),
+            `이론: ${cv.theory}`,el('br'),
+            `　기준: ${cv.initStock}`,el('br'),
+            `　반입: +${cv.totalIn}`,el('br'),
+            `　출고: -${cv.totalOut}`,el('br'),
+            el('span',{style:{color:'var(--er)',fontWeight:'700'}},`차이: ${cv.diff>0?'+':''}${cv.diff}`)
+          ));
+        }
+
+        // 불일치 비고 누적 표시 (클릭 시 내용 펼침)
+        if(cv.notes.length>0){
+          wrap.append(el('div',{style:{width:'100%',height:'0.5px',background:'var(--bd)',margin:'2px 0'}}));
+          cv.notes.slice(0,3).forEach(n=>{
+            const noteKey=prod.id+'_note_'+n.date;
+            const isExpanded=!!state._noteExpanded?.[noteKey];
+            const chip=el('div',{style:{fontSize:'8px',color:'var(--acc)',background:'var(--al)',
+              padding:'2px 6px',borderRadius:'6px',whiteSpace:'nowrap',cursor:'pointer',fontWeight:'500'}},`📝 ${fmtDate(n.date)}`);
+            chip.addEventListener('click',e=>{e.stopPropagation();if(!state._noteExpanded)state._noteExpanded={};state._noteExpanded[noteKey]=!isExpanded;render();});
+            const chipWrap=el('div',{style:{width:'100%'}},chip);
+            if(isExpanded)chipWrap.append(el('div',{style:{fontSize:'9px',color:'var(--t2)',background:'var(--al)',border:'1px solid var(--bd)',padding:'4px 7px',borderRadius:'6px',marginTop:'2px',wordBreak:'break-all',whiteSpace:'normal',lineHeight:'1.5'}},n.note||'(내용 없음)'));
+            wrap.append(chipWrap);
+          });
+          if(cv.notes.length>3)
+            wrap.append(el('span',{style:{fontSize:'8px',color:'var(--t3)'}},`+${cv.notes.length-3}건`));
+        } else {
+          // 불일치인데 비고 없음 → 메모 유도 안내
+          wrap.append(el('span',{style:{fontSize:'8px',color:'var(--t3)',marginTop:'1px'}},'비고 없음'));
+        }
+      }
+
+      return wrap;
+    })();
+
     return el('tr',null,
       el('td',{style:{backgroundColor:bg}},prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
       el('td',{style:{backgroundColor:bg,color:'var(--t3)'}},st?st.sample:'-'),
       el('td',{class:noData?'':'auto-c',style:noData?{backgroundColor:bg,color:'var(--t3)',fontStyle:'italic'}:{backgroundColor:bg}},st?st.storage:'-'),
       el('td',{class:noData?'':'auto-c',style:noData?{backgroundColor:bg,color:'var(--t3)',fontStyle:'italic'}:{backgroundColor:bg}},st?st.drawer:'-'),
       el('td',{class:'auto-c',style:noData?{backgroundColor:bg,color:'var(--t3)',fontStyle:'italic'}:{backgroundColor:bg}},st?st.total:'-'),
-      el('td',{style:{backgroundColor:bg,color:'var(--t3)',fontSize:'9px'}},st&&st.date?fmtDate(st.date):'기준재고'),
-      el('td',{style:{backgroundColor:bg}},
-        (()=>{
-          const dr=state.draft[prod.id];
-          const hasVal=(dr&&dr.storage!==''&&dr.storage!==undefined)||(dr&&dr.drawer!==''&&dr.drawer!==undefined);
-          if(!hasVal)return el('span',{style:{color:'var(--t3)',fontSize:'9px'}},'미입력');
-          const v=verify(prod.id,date,dr.storage||'0',dr.drawer||'0');
-          return vBadgeMemo(v,prod.id,date);
-        })()
-      )
+      el('td',{style:{backgroundColor:bg}},recentDateCell),
+      el('td',{style:{backgroundColor:bg,textAlign:'center'}},monthlyCell),
+      el('td',{style:{backgroundColor:bg,textAlign:'center'}},salesCell),
+      el('td',{style:{backgroundColor:bg}},verifyCell)
     );
   }));
   return el('div',{class:'tbl-wrap'},el('table',{class:'tbl'},thead,tbody));
@@ -837,8 +1077,7 @@ function salesTable(){
     el('th',null,'실사합계'),
     el('th',{style:{color:'#FFE082'}},'판매'),
     el('th',{style:{color:'#C8E6C9'}},'증정'),
-    el('th',{style:{color:'#FFCDD2'}},'폐기'),
-    el('th',null,'검증')
+    el('th',{style:{color:'#FFCDD2'}},'폐기')
   ));
 
   const rows=prods.map(prod=>{
@@ -849,7 +1088,6 @@ function salesTable(){
     const wasteEntry=outgoing.find(o=>o.type==='폐기')||{qty:0,note:''};
     const wasteQty=parseInt(wasteEntry.qty)||0;
     const total=getTotal(d.storage,d.drawer,prod);
-    const v=(d.storage!==''||d.drawer!=='')?verify(prod.id,date,d.storage||'0',d.drawer||'0'):null;
     const bg=CAT_BG[prod.cat];
     const rec=getDateRec(prod.id,date);
 
@@ -963,8 +1201,7 @@ function salesTable(){
       ),
       el('td',{style:{backgroundColor:bg}},
         el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:'2px'}},wasteCtrl,wasteMemo)
-      ),
-      el('td',{style:{backgroundColor:bg}},vBadge(v))
+      )
     );
   });
 
@@ -981,27 +1218,45 @@ function sitePage(){
   function siteInitCard(){
     const prods=getProds();
     const rows=prods.map(prod=>{
-      const cur=state.initSiteVals[prod.id]||state.db.siteInit[prod.id]||{};
+      const dbVal=state.db.siteInit[prod.id]||{};
+      const cur={...dbVal,...(state.initSiteVals[prod.id]||{})};
       const bg=CAT_BG[prod.cat];
-      const si=el('input',{type:'number',class:'init-inp',min:'0',value:cur.storage||'',placeholder:'0'});
-      si.addEventListener('input',e=>{state.initSiteVals[prod.id]={...state.initSiteVals[prod.id]||{},storage:e.target.value};});
-      const di=el('input',{type:'number',class:'init-inp',min:'0',value:cur.drawer||'',placeholder:'0'});
-      di.addEventListener('input',e=>{state.initSiteVals[prod.id]={...state.initSiteVals[prod.id]||{},drawer:e.target.value};});
+      const si=el('input',{type:'number',class:'init-inp',min:'0',value:cur.storage??'',placeholder:'0'});
+      si.addEventListener('input',e=>{
+        const prev=state.initSiteVals[prod.id]||{...dbVal};
+        state.initSiteVals[prod.id]={...prev,storage:e.target.value};
+      });
+      const di=el('input',{type:'number',class:'init-inp',min:'0',value:cur.drawer??'',placeholder:'0'});
+      di.addEventListener('input',e=>{
+        const prev=state.initSiteVals[prod.id]||{...dbVal};
+        state.initSiteVals[prod.id]={...prev,drawer:e.target.value};
+      });
+      const curTotal=(prod.sample||0)+(parseInt(cur.storage)||0)+(parseInt(cur.drawer)||0);
       return el('div',{class:'init-row',style:{backgroundColor:bg}},
-        el('div',{class:'init-name'},prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat),el('span',{style:{fontSize:'9px',color:'var(--t3)',marginLeft:'3px'}},`샘플${prod.sample}`)),
+        el('div',{class:'init-name'},prod.name,
+          el('span',{class:`cb cb-${prod.cat}`},prod.cat),
+          el('span',{style:{fontSize:'9px',color:'var(--t3)',marginLeft:'3px'}},`샘플${prod.sample}`),
+          el('span',{style:{fontSize:'9px',color:'var(--acc)',marginLeft:'5px',fontWeight:'600'}},`합계 ${curTotal}`)
+        ),
         el('div',{style:{display:'flex',gap:'5px',alignItems:'flex-end',flexShrink:0}},fld('보관함',si),fld('인포서랍',di))
       );
     });
     const btn=el('button',{class:'sbtn sm'},'기준재고 저장');
     btn.addEventListener('click',()=>{
       const ni={...state.db.siteInit};
-      Object.entries(state.initSiteVals).forEach(([pid,v])=>{ni[pid]={storage:parseInt(v.storage)||0,drawer:parseInt(v.drawer)||0};});
+      Object.entries(state.initSiteVals).forEach(([pid,v])=>{
+        const existing=state.db.siteInit[pid]||{};
+        ni[pid]={
+          storage:v.storage!==undefined?parseInt(v.storage)||0:(existing.storage||0),
+          drawer:v.drawer!==undefined?parseInt(v.drawer)||0:(existing.drawer||0)
+        };
+      });
       persist({...state.db,siteInit:ni});
       state.showInitSite=false;state.initSiteVals={};
       state.draft=initDraft(state.selDate);
       showToast('✓ 기준재고 저장됨');
     });
-    return el('div',{class:'card'},el('div',{class:'ct'},'🏷 현장 기준재고 설정 (최초 1회)'),...rows,btn);
+    return el('div',{style:{borderTop:'1px solid var(--bd)',marginTop:'8px',paddingTop:'8px'}},el('div',{class:'ct',style:{marginBottom:'6px'}},'🏷 현장 기준재고 설정'),...rows,btn);
   }
 
   // 날짜 선택
@@ -1013,8 +1268,10 @@ function sitePage(){
     render();
   });
 
+  // 담당자 선택 UI 제거됨
+
   // 기록된 날짜 빠른 선택 (최근 10개) - 실사/판매 저장 상태 표시
-  const recDates=[...new Set(state.db.site.map(r=>r.date))].sort((a,b)=>b.localeCompare(a)).slice(0,10);
+  const recDates=[...new Set(toArr(state.db.site).map(r=>r.date))].sort((a,b)=>b.localeCompare(a)).slice(0,10);
   const datePills=el('div',{style:{display:'flex',gap:'4px',flexWrap:'wrap',padding:'4px 0 2px'}},
     ...recDates.map(date=>{
       const recs=toArr(state.db.site).filter(r=>r.date===date);
@@ -1037,11 +1294,17 @@ function sitePage(){
   const selDateHasInv=selDateRecs.length>0;
   const selDateHasSales=selDateRecs.some(r=>parseInt(r.sales)>0);
 
-  // 상단 실재고 카드
+  // 상단 실재고 카드 (반입 년/월 셀렉트 포함)
+  const stockTable=currentStockTable();
+  const filterEl=currentStockTable._filterEl;
   const topCard=el('div',{class:'card'},
     el('div',{class:'ct'},'📊 현재 실재고',
-      el('span',{class:'ct-act',onclick:()=>set({showInitSite:!state.showInitSite})},state.showInitSite?'닫기':'기준재고 설정')
-    )
+      el('div',{style:{display:'flex',gap:'6px',alignItems:'center'}},
+        filterEl,
+        el('span',{class:'ct-act',onclick:()=>set({showInitSite:!state.showInitSite})},state.showInitSite?'닫기':'기준재고 설정')
+      )
+    ),
+    state.showInitSite?siteInitCard():null
   );
 
   // 입력 날짜 카드 (날짜 선택 + 담당자 + 빠른 날짜 선택)
@@ -1053,8 +1316,7 @@ function sitePage(){
 
   return el('div',null,
     topCard,
-    currentStockTable(),
-    state.showInitSite?siteInitCard():null,
+    stockTable,
     dateCard,
     el('div',{class:'card'},
       el('div',{class:'ct'},
@@ -1274,17 +1536,25 @@ function histPage(){
         state.wh={date:r.date,cat:r.cat,pid:r.productId,type:isFieldTransfer(r.type)?'창고→현장':r.type==='입고'?'창고반입':r.type,qty:String(r.qty),note:r.note||''};
         set({tab:1});
       });
+      const delBtn=el('button',{class:'del-btn',style:{color:'var(--er)',fontWeight:'700',fontSize:'14px'}},'×');
+      delBtn.addEventListener('click',e=>{
+        e.stopPropagation();
+        if(!confirm(`"${r.productName}" 기록을 삭제할까요?`))return;
+        persist({...state.db,wh:toArr(state.db.wh).filter(x=>x.id!==r.id)});
+        showToast('✓ 삭제됨');
+      });
       const typeLabel=isFieldTransfer(r.type)?'창고→현장':(r.type==='입고'?'창고반입':r.type);
       const isIn=r.type==='창고반입'||r.type==='입고';
       const isSite=isFieldTransfer(r.type);
       return el('div',{class:'wh-rec',style:{margin:'2px 12px',borderRadius:'8px'}},
         el('div',null,
-          el('div',{style:{fontWeight:'600',fontSize:'12px'}},r.productName,el('span',{class:`cb cb-${r.cat}`},r.cat))
+          el('div',{style:{fontWeight:'600',fontSize:'12px'}},r.productName,el('span',{class:`cb cb-${r.cat}`},r.cat)),
+          r.note?el('div',{style:{fontSize:'9px',color:'var(--t3)',marginTop:'1px'}},r.note):null
         ),
         el('div',{style:{display:'flex',alignItems:'center',gap:'6px'}},
           el('span',{class:'wh-badge '+(isIn?'wh-in':isSite?'wh-site':'wh-out')},typeLabel),
           el('span',{style:{fontSize:'15px',fontWeight:'700',color:isIn?'var(--ok)':isSite?'var(--p)':'var(--er)'}},r.qty+'개'),
-          editBtn
+          editBtn,delBtn
         )
       );
     }):[];
