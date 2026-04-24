@@ -256,7 +256,10 @@ db_ref.on('value', snapshot => {
     if(state._draftInit) {
       state.draft = initDraft(state.selDate);
     }
-    render();
+    // 사용자가 입력 중이면 render 건너뜀 (포커스 날아가는 문제 방지)
+    const activeEl = document.activeElement;
+    const isTyping = activeEl && (activeEl.tagName==='INPUT'||activeEl.tagName==='TEXTAREA'||activeEl.tagName==='SELECT');
+    if(!isTyping) render();
   }
 });
 
@@ -767,8 +770,27 @@ let state={
 };
 
 function set(p){Object.assign(state,p);render();}
-function showToast(m){if(state._tt)clearTimeout(state._tt);state.toast=m;state._tt=setTimeout(()=>{state.toast='';render();},2500);render();}
-function persist(d){state.db=d;saveDb(d);render();}
+function showToast(m){
+  if(state._tt)clearTimeout(state._tt);
+  state.toast=m;
+  // toast만 DOM에서 직접 업데이트 (전체 re-render 방지)
+  const root=document.getElementById('app');
+  let toastEl=root&&root.querySelector('.toast');
+  if(m){
+    if(!toastEl){toastEl=document.createElement('div');toastEl.className='toast';root&&root.append(toastEl);}
+    toastEl.textContent=m;
+  } else {
+    if(toastEl)toastEl.remove();
+  }
+  state._tt=setTimeout(()=>{state.toast='';const t=document.querySelector('.toast');if(t)t.remove();},2500);
+}
+function persist(d){
+  state.db=d;saveDb(d);
+  // 입력 중(포커스 있음)이면 render 스킵 — 포커스 날아가는 문제 방지
+  const ae=document.activeElement;
+  const typing=ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.tagName==='SELECT');
+  if(!typing) render();
+}
 
 // 최초 Firebase 데이터 로드
 state._loading = true;
