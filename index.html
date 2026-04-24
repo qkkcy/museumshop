@@ -835,8 +835,10 @@ function saveInventory(){
     const d=state.draft[prod.id];
     if(!d||((d.storage===''||d.storage===undefined)&&(d.drawer===''||d.drawer===undefined)))return;
     const merged=mergedByPid[prod.id]||{sales:0,outgoing:[],verifyNote:''};
+    const storageVal=(d.storage===''||d.storage===undefined)?'0':d.storage;
+    const drawerVal=(d.drawer===''||d.drawer===undefined)?'0':d.drawer;
     newSite.push({id:uid(),date,cat:prod.cat,productId:prod.id,productName:prod.name,
-      sample:prod.sample,storage:d.storage,drawer:d.drawer,
+      sample:prod.sample,storage:storageVal,drawer:drawerVal,
       sales:merged.sales,outgoing:merged.outgoing,
       staff,verifyNote:merged.verifyNote,note:'',ts:Date.now()});
     savedCount++;
@@ -909,7 +911,7 @@ function el(tag,attrs,...kids){
   return e;
 }
 const fld=(l,i)=>el('div',null,el('label',{class:'label'},l),i);
-function nInp(val,onCh,w){const i=el('input',{type:'number',class:'t-inp',min:'0',value:val,placeholder:'0'});if(w)i.style.width=w;i.addEventListener('input',e=>onCh(e.target.value));return i;}
+function nInp(val,onCh,w){const i=el('input',{type:'number',class:'t-inp',min:'0',value:val,placeholder:'0'});i.setAttribute('inputmode','numeric');if(w)i.style.width=w;i.addEventListener('input',e=>onCh(e.target.value));return i;}
 function selEl(val,opts,onCh){const s=el('select',{class:'inp sel'});opts.forEach(([v,t])=>{const o=el('option',{value:v},t);if(v==val)o.selected=true;s.append(o);});s.addEventListener('change',e=>onCh(e.target.value));return s;}
 function pillsEl(items,active,onClick,sm){return el('div',{class:'pills'},...items.map(item=>{const b=el('button',{class:'pill'+(item===active?' on':'')+(sm?' pill-sm':'')},item);b.addEventListener('click',()=>onClick(item));return b;}));}
 
@@ -1304,16 +1306,32 @@ function inventoryTable(){
     const total=getTotal(d.storage,d.drawer,prod);
     const bg=CAT_BG[prod.cat];
     const storI=el('input',{type:'number',class:'t-inp',min:'0',value:d.storage,placeholder:'0'});
-    storI.addEventListener('change',e=>{
+    storI.setAttribute('inputmode','numeric');
+    storI.addEventListener('input',e=>{
       if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false};
       state.draft[prod.id].storage=e.target.value;
       state.draft[prod.id].dirty=true;
     });
+    storI.addEventListener('blur',e=>{
+      if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false};
+      if(state.draft[prod.id].storage===''||state.draft[prod.id].storage===undefined){
+        state.draft[prod.id].storage='0';
+        e.target.value='0';
+      }
+    });
     const drawI=el('input',{type:'number',class:'t-inp',min:'0',value:d.drawer,placeholder:'0'});
-    drawI.addEventListener('change',e=>{
+    drawI.setAttribute('inputmode','numeric');
+    drawI.addEventListener('input',e=>{
       if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false};
       state.draft[prod.id].drawer=e.target.value;
       state.draft[prod.id].dirty=true;
+    });
+    drawI.addEventListener('blur',e=>{
+      if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false};
+      if(state.draft[prod.id].drawer===''||state.draft[prod.id].drawer===undefined){
+        state.draft[prod.id].drawer='0';
+        e.target.value='0';
+      }
     });
     return el('tr',null,
       el('td',{style:{backgroundColor:bg}},
@@ -1552,11 +1570,13 @@ function sitePage(){
       const cur={...dbVal,...(state.initSiteVals[prod.id]||{})};
       const bg=CAT_BG[prod.cat];
       const si=el('input',{type:'number',class:'init-inp',min:'0',value:cur.storage??'',placeholder:'0'});
+      si.setAttribute('inputmode','numeric');
       si.addEventListener('input',e=>{
         const prev=state.initSiteVals[prod.id]||{...dbVal};
         state.initSiteVals[prod.id]={...prev,storage:e.target.value};
       });
       const di=el('input',{type:'number',class:'init-inp',min:'0',value:cur.drawer??'',placeholder:'0'});
+      di.setAttribute('inputmode','numeric');
       di.addEventListener('input',e=>{
         const prev=state.initSiteVals[prod.id]||{...dbVal};
         state.initSiteVals[prod.id]={...prev,drawer:e.target.value};
@@ -1748,6 +1768,7 @@ function whPage(){
     const rows=prods.map(prod=>{
       const cur=state.initWhVals[prod.id]??state.db.whInit[prod.id]??'';
       const inp=el('input',{type:'number',class:'init-inp',min:'0',value:cur,placeholder:'0'});
+      inp.setAttribute('inputmode','numeric');
       inp.addEventListener('input',e=>{state.initWhVals[prod.id]=e.target.value;});
       return el('div',{class:'init-row',style:{backgroundColor:CAT_BG[prod.cat]}},
         el('div',{class:'init-name'},prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
@@ -1781,7 +1802,12 @@ function whPage(){
     const siteQ=mv.filter(r=>isFieldTransfer(r.type)).reduce((s,r)=>s+r.qty,0);
     const curr=init+inQ-siteQ;
     const initInp=el('input',{type:'number',class:'t-inp',min:'0',value:init,placeholder:'0',style:{width:'48px'}});
-    initInp.addEventListener('change',e=>{
+    initInp.setAttribute('inputmode','numeric');
+    initInp.addEventListener('input',e=>{
+      const ni={...state.db.whInit,[prod.id]:parseInt(e.target.value)||0};
+      state.db.whInit=ni;
+    });
+    initInp.addEventListener('blur',e=>{
       const ni={...state.db.whInit,[prod.id]:parseInt(e.target.value)||0};
       persist({...state.db,whInit:ni});
       showToast(`✓ ${prod.name} 기준재고 저장`);
@@ -1801,7 +1827,7 @@ function whPage(){
   const tp=pillsEl(['창고반입','창고→현장'],f.type,v=>{state.wh.type=v;render();});
   const cp=pillsEl(CATS,f.cat,c=>{state.wh.cat=c;state.wh.pid='';render();},true);
   const ps=selEl(f.pid,[['','— 품목 선택 —'],...prodList.map(p=>[p.id,p.name])],v=>{state.wh.pid=v;render();});
-  const qi=el('input',{type:'number',class:'inp',min:'0',value:f.qty,placeholder:'0'});qi.addEventListener('input',e=>{state.wh.qty=e.target.value;});
+  const qi=el('input',{type:'number',class:'inp',min:'0',value:f.qty,placeholder:'0'});qi.setAttribute('inputmode','numeric');qi.addEventListener('input',e=>{state.wh.qty=e.target.value;});
   const ni=el('input',{type:'text',class:'inp',value:f.note||'',placeholder:'비고'});ni.addEventListener('input',e=>{state.wh.note=e.target.value;});
   const isEditWh=!!state.editWhId;
   const sb=el('button',{class:'sbtn sm'},isEditWh?'✓ 수정 저장':'저장');
