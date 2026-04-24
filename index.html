@@ -2245,8 +2245,17 @@ function render(){
 
   });
 }
-window.addEventListener('resize',()=>render());
-window.addEventListener('orientationchange',()=>setTimeout(render,150));
+// resize: 안드로이드 키패드 열릴 때도 발생 → 입력 중이면 완전히 무시
+window.addEventListener('resize',()=>{
+  const ae=document.activeElement;
+  if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'))return;
+  render();
+});
+window.addEventListener('orientationchange',()=>{
+  // 화면 회전: 입력 중이어도 blur 후 render
+  document.activeElement&&document.activeElement.blur&&document.activeElement.blur();
+  setTimeout(render,150);
+});
 render();
 
 // Service Worker 등록
