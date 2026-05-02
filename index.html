@@ -330,19 +330,29 @@ function getCurrentStock(pid){
 }
 
 // 검증: actual = 오늘 실사합계(샘플+보관함+인포서랍)
-//        expected = 이전실사합계 - (이전실사일~오늘 직전까지 모든 출고) + 반입
-//        ※ 이전실사일과 오늘 사이에 판매만 입력한 날이 있어도 모두 출고로 합산
-function verify(pid,date,storage,drawer){
+//        expected = 이전실사합계 - (이전실사일 당일 판매 포함, 오늘 직전까지 모든 출고) + 반입
+//        ※ prevTotal은 판매 전 센 실사 수량이므로 이전 실사일 당일 판매도 차감
+// 마지막 "정상" 실사 기록 찾기 (재귀적으로 불일치 체인 거슬러 올라감)
+function getBaseRec(pid,date){
+  const rec=getPrevRec(pid,date);
+  if(!rec)return null;
+  const v=verifyDirect(pid,rec.date,getS(rec),getD(rec));
+  // 직전 실사가 정상이면 그게 기준점
+  if(!v||v.isFirst||v.ok)return rec;
+  // 직전 실사도 불일치면 더 거슬러 올라감
+  return getBaseRec(pid,rec.date)||rec;
+}
+
+// 직전 실사 대비만 계산 (재귀 없는 순수 계산)
+function verifyDirect(pid,date,storage,drawer){
   const prod=getProds().find(p=>p.id===pid);
   if(!prod)return null;
   const s=typeof prod.sample==='number'?prod.sample:0;
   if(storage===''||storage===undefined||storage===null)return null;
   const actual=s+(parseInt(storage)||0)+(parseInt(drawer)||0);
-  // 이전 실사 기록 (실재고 수량 있는 것만 - 판매만 입력한 날 제외)
   const prevRec=getPrevRec(pid,date);
   if(!prevRec)return{ok:null,actual,expected:null,isFirst:true};
   const prevTotal=s+(parseInt(getS(prevRec))||0)+(parseInt(getD(prevRec))||0);
-  // 이전 실사일부터 오늘 직전까지 모든 출고 합산 (판매만 기록된 중간 날짜 포함)
   const allOutRecs=Object.values(
     toArr(state.db.site)
       .filter(r=>r.productId===pid&&r.date>=prevRec.date&&r.date<date)
@@ -351,12 +361,57 @@ function verify(pid,date,storage,drawer){
   const totalOut=allOutRecs.reduce((acc,r)=>
     acc+(parseInt(r.sales)||0)+toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0)
   ,0);
-  // 이전 실사일 다음날부터 오늘까지 반입 합산
   const transfer=toArr(state.db.wh)
     .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date>prevRec.date&&r.date<=date)
     .reduce((s,r)=>s+(parseInt(r.qty)||0),0);
   const expected=prevTotal-totalOut+transfer;
   return{ok:actual===expected,actual,expected,transfer,prevDate:prevRec.date,prevTotal,prevSales:totalOut};
+}
+
+function verify(pid,date,storage,drawer){
+  const prod=getProds().find(p=>p.id===pid);
+  if(!prod)return null;
+  const s=typeof prod.sample==='number'?prod.sample:0;
+  if(storage===''||storage===undefined||storage===null)return null;
+  const actual=s+(parseInt(storage)||0)+(parseInt(drawer)||0);
+  const prevRec=getPrevRec(pid,date);
+  if(!prevRec)return{ok:null,actual,expected:null,isFirst:true};
+
+  // 직전 실사 대비 계산 (오버레이 계산 내역 표시용)
+  const directV=verifyDirect(pid,date,storage,drawer);
+
+  // 마지막 정상 실사(기준점)부터 지금까지 누적 계산
+  const baseRec=getBaseRec(pid,date)||prevRec;
+  const baseTotal=s+(parseInt(getS(baseRec))||0)+(parseInt(getD(baseRec))||0);
+  const allOutFromBase=Object.values(
+    toArr(state.db.site)
+      .filter(r=>r.productId===pid&&r.date>=baseRec.date&&r.date<date)
+      .reduce((map,r)=>{if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;return map;},{})
+  );
+  const totalOutFromBase=allOutFromBase.reduce((acc,r)=>
+    acc+(parseInt(r.sales)||0)+toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0)
+  ,0);
+  const transferFromBase=toArr(state.db.wh)
+    .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date>baseRec.date&&r.date<=date)
+    .reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+  const expectedFromBase=baseTotal-totalOutFromBase+transferFromBase;
+  const ok=actual===expectedFromBase;
+
+  // 직전 실사가 불일치였는지 (누적 중인지)
+  const prevV=verifyDirect(pid,prevRec.date,getS(prevRec),getD(prevRec));
+  const prevBad=prevV&&!prevV.isFirst&&!prevV.ok;
+
+  return{
+    ok,actual,
+    expected:directV?directV.expected:expectedFromBase, // 오버레이 표시는 직전 대비
+    expectedFromBase,                                    // 누적 기준 예상값
+    baseDate:baseRec.date,
+    transfer:directV?directV.transfer:transferFromBase,
+    prevDate:prevRec.date,
+    prevTotal:directV?directV.prevTotal:baseTotal,
+    prevSales:directV?directV.prevSales:totalOutFromBase,
+    prevBad
+  };
 }
 
 // 누적 최종검증: 기준재고 + 누적반입 - 누적출고 = 이론재고, 이론재고 vs 최신실사합계 비교
@@ -699,6 +754,44 @@ function exportAll(){
   else ws_data.push(['데이터 없음']);
   addSep();
 
+  // ── 섹션4-5: 월별 상품별 판매 수량 ──
+  const salesMonths=[...new Set(toArr(state.db.site).map(r=>r.date.slice(0,7)))].sort();
+  addSectionTitle('🛒 월별 상품별 판매 수량',COLOR.dayNote,MAX_COLS);
+  addHeader(['월','카테고리','제품명','판매','증정','폐기','총출고','','','','','','',''],COLOR.dayNote);
+  salesMonths.forEach(mo=>{
+    const[sy,sm]=mo.split('-');
+    const moLabel=`${sy}년 ${parseInt(sm)}월`;
+    const moFrom=`${mo}-01`;
+    const moLastDay=new Date(parseInt(sy),parseInt(sm),0).getDate();
+    const moTo=`${mo}-${String(moLastDay).padStart(2,'0')}`;
+    const moRecs=Object.values(
+      toArr(state.db.site)
+        .filter(r=>r.date>=moFrom&&r.date<=moTo)
+        .reduce((map,r)=>{const k=r.productId+'_'+r.date;if(!map[k]||r.ts>map[k].ts)map[k]=r;return map;},{})
+    );
+    let moTotalS=0,moTotalG=0,moTotalW=0;
+    let hasAny=false;
+    allProds.forEach((prod,pi)=>{
+      const recs=moRecs.filter(r=>r.productId===prod.id);
+      const s=recs.reduce((a,r)=>a+(parseInt(r.sales)||0),0);
+      const g=recs.reduce((a,r)=>a+toArr(r.outgoing||[]).filter(o=>o.type==='증정').reduce((x,o)=>x+(parseInt(o.qty)||0),0),0);
+      const w=recs.reduce((a,r)=>a+toArr(r.outgoing||[]).filter(o=>o.type==='폐기').reduce((x,o)=>x+(parseInt(o.qty)||0),0),0);
+      if(s===0&&g===0&&w===0)return;
+      hasAny=true;
+      moTotalS+=s;moTotalG+=g;moTotalW+=w;
+      const ri=ws_data.length;
+      ws_data.push([pi===0?moLabel:'',prod.cat,prod.name,s||0,g||0,w||0,s+g+w,...Array(MAX_COLS-7).fill('')]);
+      styles[ri]={fill:pi%2===0?'FFFDE7':'FFF9C4',font:'333333',sz:10,border:true};
+    });
+    if(hasAny){
+      const riSum=ws_data.length;
+      ws_data.push([moLabel+' 합계','','',moTotalS,moTotalG,moTotalW,moTotalS+moTotalG+moTotalW,...Array(MAX_COLS-7).fill('')]);
+      styles[riSum]={fill:'F9A825',font:'FFFFFF',bold:true,sz:10,border:true};
+    }
+  });
+  if(salesMonths.length===0)ws_data.push(['데이터 없음',...Array(MAX_COLS-1).fill('')]);
+  addSep();
+
   // ── 섹션5: 현장 실사기록 (선택된 월) ──
   const siteMonthLabel=state._siteRecAll?'전체':`${state.siteRecYear}년 ${state.siteRecMonth}월`;
   addSectionTitle(`📋 현장 실사기록 (${siteMonthLabel})`,COLOR.siteRec,14);
@@ -842,6 +935,7 @@ let state={
   siteRecMonth:new Date().getMonth()+1,
   _showExportPicker:false,
   _siteRecAll:false,
+  _verifyOverlay:null, // {pid, productName} — 검증 오버레이
 };
 
 function set(p){Object.assign(state,p);render();}
@@ -949,7 +1043,7 @@ function saveSales(){
     const d=state.draft[r.productId];
     if(!d)return r;
     updated=true;
-    return{...r,sales:d.sales||0,outgoing:d.outgoing||[],salesNote:r.salesNote||'',ts:Date.now()};
+    return{...r,sales:d.sales||0,outgoing:d.outgoing||[],dayNote:r.dayNote||'',ts:Date.now()};
   })];
 
   // 실사 기록 없는데 출고만 있는 경우 추가
@@ -1051,6 +1145,35 @@ function vBadgeMemo(v,pid,date){
     wrap.append(el('div',{style:{fontSize:'9px',color:'var(--acc)',marginTop:'2px',width:'100%'}},`메모: ${savedMemo}`));
   }
   return wrap;
+}
+
+// ── 불일치 메모 입력창 빌더 (공통, 모듈 레벨) ──────────────────
+function buildMemoInput(memoKey,savedMemo,pid,date){
+  const memoInp=el('input',{type:'text',
+    style:{width:'100%',marginTop:'2px',border:'1px solid var(--bd)',borderRadius:'5px',
+      padding:'3px 6px',fontSize:'10px',outline:'none'},
+    placeholder:'불일치 이유...',
+    value:state.verifyMemo[memoKey]!==undefined?state.verifyMemo[memoKey]:savedMemo
+  });
+  memoInp.addEventListener('input',e=>{
+    state.verifyMemo={...state.verifyMemo,[memoKey]:e.target.value};
+  });
+  const sb=el('button',{style:{
+    marginTop:'2px',width:'100%',padding:'2px',fontSize:'9px',
+    background:'var(--p)',color:'#fff',border:'none',borderRadius:'4px',cursor:'pointer'
+  }},'저장');
+  sb.addEventListener('click',()=>{
+    const note=state.verifyMemo[memoKey]||'';
+    const newSite=toArr(state.db.site).map(r=>{
+      if(r.productId===pid&&r.date===date)return{...r,verifyNote:note,ts:Date.now()};
+      return r;
+    });
+    persist({...state.db,site:newSite});
+    state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:false};
+    state.verifyMemo={...state.verifyMemo,[memoKey]:undefined};
+    showToast('✓ 메모 저장됨');
+  });
+  return el('div',{style:{paddingLeft:'2px'}},memoInp,sb);
 }
 
 // ── 현재 실재고 테이블 (위) ──────────────────────────────────
@@ -1183,187 +1306,84 @@ function currentStockTable(){
       ?el('span',{style:{fontSize:'11px',fontWeight:'700',color:'var(--acc)'}},`-${monthSales}`)
       :el('span',{style:{color:'var(--t3)',fontSize:'9px'}},'-');
 
-    // 메모 입력창 빌더 (공통)
-    function buildMemoInput(memoKey,savedMemo,pid,date){
-      const memoInp=el('input',{type:'text',
-        style:{width:'100%',marginTop:'2px',border:'1px solid var(--bd)',borderRadius:'5px',
-          padding:'3px 6px',fontSize:'10px',outline:'none'},
-        placeholder:'불일치 이유...',
-        value:state.verifyMemo[memoKey]!==undefined?state.verifyMemo[memoKey]:savedMemo
-      });
-      memoInp.addEventListener('input',e=>{
-        state.verifyMemo={...state.verifyMemo,[memoKey]:e.target.value};
-      });
-      const sb=el('button',{style:{
-        marginTop:'2px',width:'100%',padding:'2px',fontSize:'9px',
-        background:'var(--p)',color:'#fff',border:'none',borderRadius:'4px',cursor:'pointer'
-      }},'저장');
-      sb.addEventListener('click',()=>{
-        const note=state.verifyMemo[memoKey]||'';
-        const newSite=toArr(state.db.site).map(r=>{
-          if(r.productId===pid&&r.date===date)return{...r,verifyNote:note,ts:Date.now()};
-          return r;
-        });
-        persist({...state.db,site:newSite});
-        state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:false};
-        state.verifyMemo={...state.verifyMemo,[memoKey]:undefined};
-        showToast('✓ 메모 저장됨');
-      });
-      return el('div',{style:{paddingLeft:'2px'}},memoInp,sb);
-    }
-
-    // 검증 셀: 날짜별 타임라인 검증 (어디서 틀어졌는지 추적 가능)
+    // 검증 셀: 현재 상태 1줄 + 월 버튼
     const verifyCell=(()=>{
       const selDate=state.selDate;
       const draft=state.draft[prod.id];
 
-      // 날짜별 최신 실사기록 목록 (최신순 정렬)
-      const allSiteRecs=toArr(state.db.site).filter(r=>r.productId===prod.id);
+      // 날짜별 최신 실사기록 (중복 제거)
+      // ★ isRealInv 필터 먼저: 같은 날 판매 레코드(ts 높음)가 실사 레코드를 덮어쓰는 것 방지
+      const allSiteRecs=toArr(state.db.site).filter(r=>r.productId===prod.id&&isRealInv(r));
       const dedupedMap=allSiteRecs.reduce((map,r)=>{
         if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;
         return map;
       },{});
-      const sortedRecs=Object.values(dedupedMap).sort((a,b)=>b.date.localeCompare(a.date));
+      const sortedRecs=Object.values(dedupedMap)
+        .sort((a,b)=>b.date.localeCompare(a.date)); // 최신순
 
-      // 미입력 상태
       const hasUnsaved=draft&&!draft.saved&&(draft.storage!==''&&draft.storage!==undefined);
       if(sortedRecs.length===0&&!hasUnsaved)
-        return el('span',{style:{color:'var(--t3)',fontSize:'9px'}},'미입력');
+        return el('span',{style:{color:'var(--t3)',fontSize:'10px'}},'미입력');
 
-      const wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'3px',alignItems:'stretch',width:'52px',overflow:'hidden'}});
+      const wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'3px'}});
 
-      // 미저장 draft가 있으면 맨 위에 실시간 검증 표시
+      const latestRec=hasUnsaved?null:sortedRecs[0];
+
+      // ── 메인 상태 (크게, 탭하면 오버레이) ──
+      const openOverlay=e=>{
+        e.stopPropagation();
+        state._verifyOverlay={pid:prod.id,productName:prod.name,focusMo:null};
+        render();
+      };
+
       if(hasUnsaved){
         const v=verify(prod.id,selDate,draft.storage||'0',draft.drawer||'0');
         const diff=v&&!v.isFirst&&!v.ok?v.actual-v.expected:null;
-        const row=el('div',{style:{display:'flex',alignItems:'center',gap:'3px'}});
-        row.append(
-          el('span',{style:{fontSize:'9px',color:'var(--pm)',minWidth:'30px',fontWeight:'600'}},fmtDate(selDate)),
-          el('span',{style:{fontSize:'8px',color:'var(--pm)',fontStyle:'italic'}},'입력중'),
-          diff!==null?el('span',{class:'ver'},`${diff>0?'+':''}${diff}`):
-          (v&&v.isFirst?el('span',{style:{fontSize:'8px',color:'var(--t3)'}},'첫기록'):el('span',{class:'vok'},'✅'))
+        const badge=el('div',{style:{cursor:'pointer',display:'inline-flex',alignItems:'center',gap:'3px'}});
+        badge.addEventListener('click',openOverlay);
+        badge.append(
+          el('span',{style:{fontSize:'9px',color:'var(--pm)',fontStyle:'italic'}},'입력중'),
+          diff!==null
+            ?el('span',{class:'ver',style:{fontSize:'10px'}},`${diff>0?'+':''}${diff}`)
+            :v&&v.isFirst
+              ?el('span',{style:{fontSize:'9px',color:'var(--t3)'}},'첫기록')
+              :el('span',{style:{fontSize:'13px'}},'✅')
         );
-        wrap.append(row);
-      }
-
-      // 날짜별 타임라인 (최신 1개 기본 표시, 나머지 접기)
-      const SHOW_MAX=1;
-      const expandKey=prod.id+'_verexp';
-      const isExpanded=!!state._noteExpanded?.[expandKey];
-      const displayRecs=isExpanded?sortedRecs:sortedRecs.slice(0,SHOW_MAX);
-
-      displayRecs.forEach(rec=>{
-        // 판매만 입력한 날 (실재고 수량 없음): 별도 표시
-        if(!isRealInv(rec)){
-          const salesQty=(parseInt(rec.sales)||0)+toArr(rec.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
-          const row=el('div',{style:{display:'flex',alignItems:'center',gap:'3px'}});
-          row.append(
-            el('span',{style:{fontSize:'9px',color:'var(--t3)',minWidth:'30px'}},fmtDate(rec.date)),
-            el('span',{style:{fontSize:'8px',color:'var(--pm)',background:'#FFF3E0',padding:'1px 4px',borderRadius:'4px',fontWeight:'600'}},`🛒 -${salesQty}`)
-          );
-          wrap.append(row);
-          return;
-        }
-
-        const v=verify(prod.id,rec.date,getS(rec),getD(rec));
-        const isOk=v&&!v.isFirst&&v.ok;
-        const isFirst=!v||v.isFirst;
+        wrap.append(badge);
+      } else if(!latestRec){
+        wrap.append(el('span',{style:{fontSize:'9px',color:'var(--t3)'}},'미입력'));
+      } else {
+        // 오버레이와 동일한 기준: isRealInv 있는 기록 중 가장 최신
+        // sortedRecs는 이미 isRealInv 필터 + 최신순 정렬되어 있으므로 [0]이 정확한 latestRec
+        const v=verify(prod.id,latestRec.date,getS(latestRec),getD(latestRec));
         const isBad=v&&!v.isFirst&&!v.ok;
+        const isOk=v&&!v.isFirst&&v.ok;
         const diff=isBad?v.actual-v.expected:null;
 
-        const memoKey=rec.date+'_'+prod.id;
-        const savedMemo=rec.verifyNote||'';
-        const isOpen=!!state.verifyMemoOpen[memoKey];
+        const statusEl=el('div',{style:{
+          cursor:'pointer',display:'inline-flex',alignItems:'center',gap:'4px',
+          padding:'3px 6px',borderRadius:'8px',
+          background:isBad?'#FDEDEC':isOk?'#F1FFF8':'transparent',
+          border:isBad?'1px solid #FFCDD2':isOk?'1px solid #C8E6C9':'none'
+        }});
+        statusEl.addEventListener('click',openOverlay);
 
-        const row=el('div',{style:{display:'flex',alignItems:'center',gap:'3px',flexWrap:'wrap'}});
-        const dateSpan=el('span',{style:{
-          fontSize:'9px',minWidth:'30px',flexShrink:'0',
-          color:isOk?'var(--t3)':isBad?'var(--er)':'var(--t3)',
-          fontWeight:isBad?'700':'400'
-        }},fmtDate(rec.date));
-        row.append(dateSpan);
-
-        // 디버그 상세 (불일치 날짜 클릭 시)
-        const debugKey=rec.date+'_'+prod.id+'_dbg';
-        const isDebugOpen=!!state._noteExpanded?.[debugKey];
-
-        if(isFirst){
-          row.append(el('span',{style:{fontSize:'8px',color:'var(--t3)'}},'첫기록'));
+        if(isBad){
+          statusEl.append(
+            el('span',{style:{fontSize:'13px',fontWeight:'700',color:'var(--er)'}},
+              `${diff>0?'+':''}${diff}`),
+            el('span',{style:{fontSize:'9px',color:'var(--er)'}},'불일치')
+          );
         } else if(isOk){
-          row.append(el('span',{class:'vok',style:{fontSize:'9px'}},'✅'));
+          statusEl.append(el('span',{style:{fontSize:'15px'}},'✅'));
         } else {
-          // 불일치: 차이값 뱃지
-          const badge=el('span',{class:'ver',style:{cursor:'pointer',fontSize:'9px'}},`${diff>0?'+':''}${diff}`);
-          badge.addEventListener('click',e=>{
-            e.stopPropagation();
-            if(!state._noteExpanded)state._noteExpanded={};
-            state._noteExpanded[debugKey]=!isDebugOpen;
-            render();
-          });
-          // 메모 버튼
-          const memoBtn=el('button',{style:{
-            background:'none',border:'1px solid '+(savedMemo?'var(--acc)':'var(--bd2)'),
-            borderRadius:'50%',width:'14px',height:'14px',fontSize:'8px',cursor:'pointer',
-            color:savedMemo?'var(--acc)':'var(--t3)',lineHeight:'1',padding:'0',flexShrink:'0',
-            display:'inline-flex',alignItems:'center',justifyContent:'center'
-          }},savedMemo?'📝':'?');
-          memoBtn.addEventListener('click',e=>{
-            e.stopPropagation();
-            state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:!isOpen};
-            render();
-          });
-          row.append(badge,memoBtn);
-
-          // 디버그 계산 내역
-          if(isDebugOpen){
-            const transfer=v.transfer||0;
-            wrap.append(row);
-            wrap.append(el('div',{style:{
-              fontSize:'8px',color:'var(--t)',background:'#f5f5f5',
-              padding:'4px 6px',borderRadius:'5px',lineHeight:'1.7',
-              borderLeft:'2px solid var(--er)',marginLeft:'2px'
-            }},
-              el('b',null,fmtDate(rec.date),' 계산 내역'),el('br'),
-              `이전 실사(${fmtDate(v.prevDate)}): ${v.prevTotal}`,el('br'),
-              `  기간 출고합계: -${v.prevSales}`,el('br'),
-              transfer>0?`  반입: +${transfer}`:null,transfer>0?el('br'):null,
-              el('span',{style:{color:'var(--pm)',fontWeight:'600'}},`예상: ${v.expected}`),el('br'),
-              el('span',{style:{color:'var(--er)',fontWeight:'700'}},`실사: ${v.actual}  →  차이 ${diff>0?'+':''}${diff}`)
-            ));
-            if(isOpen) wrap.append(buildMemoInput(memoKey,savedMemo,prod.id,rec.date));
-            else if(savedMemo) wrap.append(el('div',{style:{fontSize:'8px',color:'var(--acc)',paddingLeft:'2px',wordBreak:'break-all'}},`📝 ${savedMemo}`));
-            return;
-          }
-
-          // 메모 입력창
-          if(isOpen){
-            wrap.append(row);
-            wrap.append(buildMemoInput(memoKey,savedMemo,prod.id,rec.date));
-            return;
-          }
-          // 저장된 메모 한줄 표시
-          if(savedMemo){
-            wrap.append(row);
-            wrap.append(el('div',{style:{fontSize:'8px',color:'var(--acc)',paddingLeft:'2px',wordBreak:'break-all',lineHeight:'1.4'}},`📝 ${savedMemo}`));
-            return;
-          }
+          statusEl.append(el('span',{style:{fontSize:'9px',color:'var(--t3)'}},'첫기록'));
         }
-        wrap.append(row);
-      });
 
-      // 더보기/접기 버튼
-      if(sortedRecs.length>SHOW_MAX){
-        const btn=el('button',{style:{
-          fontSize:'8px',color:'var(--t3)',background:'none',border:'none',
-          cursor:'pointer',padding:'1px 0',textAlign:'left'
-        }},isExpanded?'▲ 접기':`▼ +${sortedRecs.length-SHOW_MAX}개`);
-        btn.addEventListener('click',e=>{
-          e.stopPropagation();
-          if(!state._noteExpanded)state._noteExpanded={};
-          state._noteExpanded[expandKey]=!isExpanded;
-          render();
-        });
-        wrap.append(btn);
+        // 최신 실사일 작게
+        statusEl.append(el('span',{style:{fontSize:'8px',color:'var(--t3)',marginLeft:'1px'}},
+          fmtDate(latestRec.date)));
+        wrap.append(statusEl);
       }
 
       return wrap;
@@ -1845,11 +1865,85 @@ function sitePage(){
     state.showInitSite?siteInitCard():null
   );
 
-  // 입력 날짜 카드 (날짜 선택 + 담당자 + 빠른 날짜 선택)
+  // 불일치 항목 요약 배너 (가장 최신 실사 기준)
+  const mismatchItems=[];
+  getProds().forEach(prod=>{
+    const rec=getLatestRec(prod.id,toDay());
+    if(!rec||!isRealInv(rec))return;
+    const v=verify(prod.id,rec.date,getS(rec),getD(rec));
+    if(v&&!v.isFirst&&!v.ok)
+      mismatchItems.push({prod,rec,diff:v.actual-v.expected});
+  });
+
+  const mismatchBanner=mismatchItems.length===0?null:el('div',{style:{
+    margin:'0 0 6px 0',background:'#FFF0F0',border:'1px solid var(--er)',
+    borderRadius:'var(--r2)',padding:'8px 12px'
+  }},
+    el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'6px'}},
+      el('span',{style:{fontWeight:'700',fontSize:'12px',color:'var(--er)'}}
+        ,`⚠️ 검증 불일치 ${mismatchItems.length}건`),
+      el('span',{style:{fontSize:'9px',color:'var(--t3)'}},'최신 실사 기준')
+    ),
+    el('div',{style:{display:'flex',flexDirection:'column',gap:'4px'}},
+      ...mismatchItems.map(({prod,rec,diff})=>el('div',{
+        style:{
+          display:'flex',alignItems:'center',gap:'6px',
+          background:'#fff',borderRadius:'6px',padding:'4px 8px',
+          border:'1px solid #FFCDD2',cursor:'pointer'
+        },
+        onclick:()=>{state._verifyOverlay={pid:prod.id,productName:prod.name,focusMo:rec.date.slice(0,7)};render();}
+      },
+        el('span',{class:`cb cb-${prod.cat}`,style:{flexShrink:'0'}},prod.cat),
+        el('span',{style:{fontSize:'11px',fontWeight:'600',flex:'1',color:'var(--t)'}},prod.name),
+        el('span',{style:{fontSize:'9px',color:'var(--t3)'}},'최신:'+fmtDate(rec.date)),
+        el('span',{class:'ver',style:{fontSize:'11px'}},`${diff>0?'+':''}${diff}`)
+      ))
+    )
+  );
+  // ── 선택 날짜 비고 요약 ──
+  const selDateNotes=(()=>{
+    const d=state.selDate;
+    const items=[];
+    // 판매 비고 (dayNote)
+    const dayNote=(()=>{
+      const r=toArr(state.db.site).find(r=>r.date===d&&r.dayNote);
+      return r?.dayNote||state.db.dayNotes?.[d]||'';
+    })();
+    if(dayNote.trim())items.push({type:'판매',icon:'📝',note:dayNote,prod:''});
+    // 증정/폐기/기타 비고
+    toArr(state.db.site).filter(r=>r.date===d).forEach(r=>{
+      toArr(r.outgoing||[]).forEach(o=>{
+        if(o.note&&o.note.trim()){
+          const prod=getProds().find(p=>p.id===r.productId);
+          items.push({type:o.type,icon:o.type==='증정'?'🎁':o.type==='폐기'?'🗑️':'📦',note:o.note,prod:prod?.name||''});
+        }
+      });
+    });
+    if(items.length===0)return null;
+    return el('div',{style:{
+      margin:'6px 0 0',padding:'8px 12px',
+      background:'var(--wb)',border:'1px solid var(--bd)',
+      borderRadius:'var(--r2)',display:'flex',flexDirection:'column',gap:'5px'
+    }},
+      el('div',{style:{fontSize:'10px',fontWeight:'700',color:'var(--t2)',marginBottom:'2px'}},'📋 선택 날짜 비고'),
+      ...items.map(item=>el('div',{style:{display:'flex',alignItems:'flex-start',gap:'6px',fontSize:'11px'}},
+        el('span',{style:{
+          flexShrink:'0',fontSize:'9px',fontWeight:'600',
+          background:item.type==='판매'?'#FFF9E6':item.type==='증정'?'#F1FFF8':'#FFF5F5',
+          color:item.type==='판매'?'var(--acc)':item.type==='증정'?'var(--ok)':'var(--er)',
+          border:'1px solid '+(item.type==='판매'?'#FFE082':item.type==='증정'?'#C8E6C9':'#FFCDD2'),
+          borderRadius:'8px',padding:'1px 6px'
+        }},item.icon+' '+item.type+(item.prod?' · '+item.prod:'')),
+        el('span',{style:{color:'var(--t)',lineHeight:'1.5',wordBreak:'break-all'}},item.note)
+      ))
+    );
+  })();
+
   const dateCard=el('div',{class:'card'},
     el('div',{class:'ct'},'📋 실사 날짜 선택'),
     el('div',{style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:recDates.length>0?'8px':'0'}},di),
-    recDates.length>0?datePills:null
+    recDates.length>0?datePills:null,
+    selDateNotes
   );
 
   // 판매 입력 날짜 단위 비고 (dayNote)
@@ -1918,6 +2012,7 @@ function sitePage(){
 
   return el('div',null,
     topCard,
+    mismatchBanner,
     stockTable,
     dateCard,
     el('div',{class:'card'},
@@ -2281,7 +2376,118 @@ function prodPage(){
   );
 }
 
-// ── RENDER ───────────────────────────────────────────────────
+// ── 월별 판매 현황 페이지 ────────────────────────────────────
+function salesPage(){
+  const prods=getProds();
+
+  // 데이터가 있는 월 목록
+  const allMonths=[...new Set(
+    toArr(state.db.site).map(r=>r.date.slice(0,7))
+  )].sort((a,b)=>b.localeCompare(a));
+
+  if(allMonths.length===0)
+    return el('div',{class:'empty',style:{marginTop:'40px'}},'저장된 판매 기록이 없어요');
+
+  if(!state._salesMo||!allMonths.includes(state._salesMo))
+    state._salesMo=allMonths[0];
+
+  const selMo=state._salesMo;
+  const[selY,selM]=selMo.split('-');
+  const moLabel=`${selY}년 ${parseInt(selM)}월`;
+
+  // 월 선택 pill
+  const moPills=el('div',{style:{display:'flex',gap:'5px',flexWrap:'wrap',padding:'4px 0'}});
+  allMonths.forEach(mo=>{
+    const[y,m]=mo.split('-');
+    const b=el('button',{class:'pill pill-sm'+(mo===selMo?' on':'')},`${y.slice(2)}.${parseInt(m)}월`);
+    b.addEventListener('click',()=>{state._salesMo=mo;render();});
+    moPills.append(b);
+  });
+
+  // 해당 월 데이터 집계
+  const moFrom=`${selMo}-01`;
+  const moLastDay=new Date(parseInt(selY),parseInt(selM),0).getDate();
+  const moTo=`${selMo}-${String(moLastDay).padStart(2,'0')}`;
+
+  // 날짜별 최신 레코드 (중복 제거)
+  const monthRecs=Object.values(
+    toArr(state.db.site)
+      .filter(r=>r.date>=moFrom&&r.date<=moTo)
+      .reduce((map,r)=>{
+        const k=r.productId+'_'+r.date;
+        if(!map[k]||r.ts>map[k].ts)map[k]=r;
+        return map;
+      },{})
+  );
+
+  // 카테고리 필터
+  const catF=state._salesCat||'전체';
+  const filteredProds=prods.filter(p=>catF==='전체'||p.cat===catF);
+
+  // 상품별 집계
+  let totalSales=0,totalGift=0,totalWaste=0,totalOut=0;
+  const rows=filteredProds.map(prod=>{
+    const recs=monthRecs.filter(r=>r.productId===prod.id);
+    const sales=recs.reduce((s,r)=>s+(parseInt(r.sales)||0),0);
+    const gift=recs.reduce((s,r)=>s+toArr(r.outgoing||[]).filter(o=>o.type==='증정').reduce((a,o)=>a+(parseInt(o.qty)||0),0),0);
+    const waste=recs.reduce((s,r)=>s+toArr(r.outgoing||[]).filter(o=>o.type==='폐기').reduce((a,o)=>a+(parseInt(o.qty)||0),0),0);    const out=sales+gift+waste;
+    if(sales===0&&gift===0&&waste===0)return null;
+    totalSales+=sales;totalGift+=gift;totalWaste+=waste;totalOut+=out;
+    const bg=CAT_BG[prod.cat];
+    return el('tr',null,
+      el('td',{style:{backgroundColor:bg}},prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
+      el('td',{style:{backgroundColor:bg,textAlign:'center',fontWeight:'600',color:'var(--acc)'}},sales||'-'),
+      el('td',{style:{backgroundColor:bg,textAlign:'center',color:'var(--ok)'}},gift||'-'),
+      el('td',{style:{backgroundColor:bg,textAlign:'center',color:'var(--er)'}},waste||'-'),
+      el('td',{style:{backgroundColor:bg,textAlign:'center',fontWeight:'700',color:'var(--pm)'}},out||'-')
+    );
+  }).filter(Boolean);
+
+  const hasData=rows.length>0;
+
+  return el('div',null,
+    el('div',{class:'card'},
+      el('div',{class:'ct'},'📊 월별 판매 현황'),
+      moPills,
+      el('div',{style:{marginTop:'6px'}},
+        pillsEl(['전체',...CATS],catF,v=>{state._salesCat=v;render();},true)
+      )
+    ),
+    hasData?el('div',{class:'card'},
+      el('div',{class:'ct'},`🛒 ${moLabel} 판매 집계`),
+      el('div',{style:{display:'flex',gap:'8px',marginBottom:'8px',flexWrap:'wrap'}},
+        el('div',{style:{flex:'1',minWidth:'60px',background:'#FFF8E1',borderRadius:'8px',padding:'8px',textAlign:'center'}},
+          el('div',{style:{fontSize:'10px',color:'var(--t3)'}},'판매'),
+          el('div',{style:{fontSize:'18px',fontWeight:'700',color:'var(--acc)'}},totalSales)
+        ),
+        el('div',{style:{flex:'1',minWidth:'60px',background:'#F1F8E9',borderRadius:'8px',padding:'8px',textAlign:'center'}},
+          el('div',{style:{fontSize:'10px',color:'var(--t3)'}},'증정'),
+          el('div',{style:{fontSize:'18px',fontWeight:'700',color:'var(--ok)'}},totalGift)
+        ),
+        el('div',{style:{flex:'1',minWidth:'60px',background:'#FFF0F0',borderRadius:'8px',padding:'8px',textAlign:'center'}},
+          el('div',{style:{fontSize:'10px',color:'var(--t3)'}},'폐기'),
+          el('div',{style:{fontSize:'18px',fontWeight:'700',color:'var(--er)'}},totalWaste)
+        ),
+        el('div',{style:{flex:'1',minWidth:'60px',background:'#EDE7F6',borderRadius:'8px',padding:'8px',textAlign:'center'}},
+          el('div',{style:{fontSize:'10px',color:'var(--t3)'}},'총출고'),
+          el('div',{style:{fontSize:'18px',fontWeight:'700',color:'var(--pm)'}},totalOut)
+        )
+      ),
+      el('div',{class:'tbl-wrap'},el('table',{class:'tbl'},
+        el('thead',null,el('tr',null,
+          el('th',null,'제품명'),
+          el('th',{style:{color:'#FFE082'}},'판매'),
+          el('th',{style:{color:'#C8E6C9'}},'증정'),
+          el('th',{style:{color:'#FFCDD2'}},'폐기'),
+          el('th',null,'총출고')
+        )),
+        el('tbody',null,...rows)
+      ))
+    ):el('div',{class:'empty'},`${moLabel}에 판매 기록이 없어요`)
+  );
+}
+
+
 function render(){
   // 로딩 중
   if(state._loading){
@@ -2323,9 +2529,9 @@ function render(){
       )
     )
     ),
-    state.tab===0?sitePage():state.tab===1?whPage():state.tab===2?histPage():prodPage(),
+    state.tab===0?sitePage():state.tab===1?whPage():state.tab===2?histPage():state.tab===3?salesPage():prodPage(),
     el('nav',{class:'nav'},
-      ...['🏪 현장재고','🏭 창고재고','📋 입출고기록','⚙️ 품목관리'].map((lbl,i)=>{
+      ...['🏪 현장재고','🏭 창고재고','📋 입출고기록','📊 월별판매','⚙️ 품목관리'].map((lbl,i)=>{
         const b=el('button',{class:'nb'+(state.tab===i?' on':'')},
           el('span',{style:{fontSize:'16px'}},lbl.split(' ')[0]),
           el('span',null,lbl.split(' ')[1]),
@@ -2336,6 +2542,288 @@ function render(){
     )
   );
   if(state.toast)root.append(el('div',{class:'toast'},state.toast));
+
+  // ── 검증 상세 오버레이 (월별 그룹) ──
+  if(state._verifyOverlay){
+    const{pid,productName,focusMo,showCumulative}=state._verifyOverlay;
+    const prod=getProds().find(p=>p.id===pid);
+
+    // 날짜별 최신 기록 (중복 제거, 오래된 순) — 판매만 기록된 날도 월 그룹에는 포함
+    const allRecs=toArr(state.db.site).filter(r=>r.productId===pid);
+    const dedMap=allRecs.reduce((m,r)=>{if(!m[r.date]||r.ts>m[r.date].ts)m[r.date]=r;return m;},{});
+    const sortedAsc=Object.values(dedMap).sort((a,b)=>a.date.localeCompare(b.date));
+    // 실재고 있는 기록만으로 "가장 최신 실사일" 산출 (verifyCell/mismatchBanner와 동일 기준)
+    const latestInvRec=sortedAsc.filter(r=>isRealInv(r)).slice(-1)[0]||null;
+
+    // 월별 그룹
+    const moGrouped={};
+    sortedAsc.forEach(rec=>{
+      const mo=rec.date.slice(0,7);
+      if(!moGrouped[mo])moGrouped[mo]=[];
+      moGrouped[mo].push(rec);
+    });
+    const moKeys=Object.keys(moGrouped).sort((a,b)=>b.localeCompare(a)); // 최신 월 먼저
+
+    const overlay=el('div',{style:{
+      position:'fixed',inset:'0',background:'rgba(0,0,0,.5)',zIndex:'60',
+      display:'flex',alignItems:'flex-end'
+    }});
+    overlay.addEventListener('click',e=>{if(e.target===overlay)set({_verifyOverlay:null});});
+
+    const sheet=el('div',{style:{
+      width:'100%',background:'#fff',borderRadius:'20px 20px 0 0',
+      maxHeight:'88vh',display:'flex',flexDirection:'column',
+      boxShadow:'0 -4px 24px rgba(0,0,0,.2)'
+    }});
+
+    // 헤더
+    const hdr=el('div',{style:{
+      padding:'14px 16px 10px',borderBottom:'.5px solid var(--bd)',
+      position:'sticky',top:'0',background:'#fff',zIndex:'1',flexShrink:'0'
+    }},
+      el('div',{style:{width:'36px',height:'4px',background:'var(--bd)',borderRadius:'2px',margin:'0 auto 10px'}}),
+      el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+        el('div',null,
+          el('div',{style:{fontWeight:'700',fontSize:'14px'}},`🔍 ${productName} 검증 이력`),
+          el('div',{style:{fontSize:'10px',color:'var(--t3)',marginTop:'2px'}},'월별 실사 검증 내역 · 클릭하여 계산 상세 확인')
+        ),
+        el('button',{style:{
+          background:'none',border:'none',fontSize:'20px',color:'var(--t3)',cursor:'pointer',padding:'0 4px'
+        },onclick:()=>set({_verifyOverlay:null})},'×')
+      )
+    );
+
+    // 현재 최신 실사 검증 상태 배지 (실재고 테이블과 동일 기준)
+    const latestStatusBar=(()=>{
+      if(!latestInvRec)return null;
+      const lv=verify(pid,latestInvRec.date,getS(latestInvRec),getD(latestInvRec));
+      const lBad=lv&&!lv.isFirst&&!lv.ok;
+      const lOk=lv&&!lv.isFirst&&lv.ok;
+      const lFirst=lv&&lv.isFirst;
+      return el('div',{style:{
+        display:'flex',alignItems:'center',gap:'8px',
+        padding:'8px 16px',borderBottom:'.5px solid var(--bd)',
+        background:lBad?'#FFF0F0':lOk?'#F1FFF8':'var(--surf2)',
+        flexShrink:'0'
+      }},
+        el('span',{style:{fontSize:'10px',color:'var(--t3)'}},'최신 실사 ('+fmtDateFull(latestInvRec.date)+')'),
+        lBad?el('span',{class:'ver',style:{fontSize:'11px',marginLeft:'auto'}},
+            `불일치 ${lv.actual-lv.expected>0?'+':''}${lv.actual-lv.expected}개`)
+          :lOk?el('span',{class:'vok',style:{fontSize:'11px',marginLeft:'auto'}},'✅ 일치')
+          :lFirst?el('span',{style:{fontSize:'10px',color:'var(--t3)',marginLeft:'auto'}},'첫 실사')
+          :null
+      );
+    })();
+
+    const body=el('div',{style:{overflowY:'auto',flex:'1',padding:'0 0 24px'}});
+
+    if(moKeys.length===0){
+      body.append(el('div',{style:{textAlign:'center',color:'var(--t3)',padding:'40px',fontSize:'13px'}},'기록 없음'));
+    } else {
+      moKeys.forEach(mo=>{
+        const [y,m]=mo.split('-');
+        const recs=moGrouped[mo]; // 오래된 날짜 → 최신 날짜 순
+        const moOk=recs.filter(r=>isRealInv(r)&&verify(pid,r.date,getS(r),getD(r))?.ok===true).length;
+        const moBad=recs.filter(r=>isRealInv(r)&&verify(pid,r.date,getS(r),getD(r))?.ok===false).length;
+        const moExpandKey='vover_'+pid+'_'+mo;
+        // focusMo인 월은 기본 열림, 나머지는 state 따라감 (기본 열림)
+        const isMoOpen=state._noteExpanded?.[moExpandKey]!==false;
+
+        // 월 헤더
+        const moHdrId='vmo_'+mo.replace('-','');
+        const isFocus=mo===focusMo;
+        const moHdr=el('div',{id:moHdrId,style:{
+          display:'flex',alignItems:'center',gap:'8px',
+          padding:'10px 16px 6px',
+          background:isFocus?'#FFF3E0':'var(--surf2)',
+          borderBottom:'.5px solid var(--bd)',
+          borderLeft:isFocus?'3px solid var(--acc)':'3px solid transparent',
+          cursor:'pointer',userSelect:'none'
+        }},
+          el('span',{style:{fontWeight:'700',fontSize:'13px',color:'var(--pm)'}}
+            ,`${y}년 ${parseInt(m)}월`),
+          el('span',{style:{fontSize:'11px',color:'var(--t3)'}},'('+recs.length+'건)'),
+          moBad>0?el('span',{style:{
+            background:'var(--er)',color:'#fff',borderRadius:'10px',
+            padding:'1px 7px',fontSize:'10px',fontWeight:'700'
+          }},`불일치 ${moBad}`):null,
+          moOk>0?el('span',{style:{fontSize:'11px',color:'var(--ok)'}},'✅ '+moOk):null,
+          el('span',{style:{marginLeft:'auto',fontSize:'11px',color:'var(--t3)'}}
+            ,isMoOpen?'▲':'▼')
+        );
+        moHdr.addEventListener('click',()=>{
+          if(!state._noteExpanded)state._noteExpanded={};
+          state._noteExpanded[moExpandKey]=!isMoOpen;
+          render();
+        });
+        body.append(moHdr);
+
+        if(!isMoOpen)return;
+
+        // 날짜 레코드들 (이 월 안에서 최신순으로)
+        [...recs].sort((a,b)=>b.date.localeCompare(a.date)).forEach(rec=>{
+          const dateStr=fmtDateFull(rec.date);
+
+          // 판매만 입력한 날
+          if(!isRealInv(rec)){
+            const salesQty=(parseInt(rec.sales)||0)+toArr(rec.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
+            body.append(el('div',{style:{
+              display:'flex',alignItems:'center',gap:'8px',
+              padding:'8px 16px',borderBottom:'.5px solid var(--surf2)'
+            }},
+              el('span',{style:{fontSize:'11px',color:'var(--t3)',minWidth:'60px'}},dateStr),
+              el('span',{style:{
+                fontSize:'10px',background:'#FFF3E0',color:'var(--acc)',
+                padding:'2px 8px',borderRadius:'8px',fontWeight:'600'
+              }},`🛒 출고 -${salesQty}`),
+              el('span',{style:{fontSize:'10px',color:'var(--t3)'}},'(실사 없음)')
+            ));
+            return;
+          }
+
+          const v=verify(pid,rec.date,getS(rec),getD(rec));
+          const isBad=v&&!v.isFirst&&!v.ok;
+          const isOk=v&&!v.isFirst&&v.ok;
+          const diff=isBad?v.actual-v.expected:null;
+          const memoKey=rec.date+'_'+pid;
+          const savedMemo=rec.verifyNote||'';
+          const isMemoOpen=!!state.verifyMemoOpen?.[memoKey];
+          const total=getTotal(getS(rec),getD(rec),prod);
+
+          const recRow=el('div',{style:{
+            padding:'8px 16px 10px',borderBottom:'.5px solid var(--surf2)',
+            background:(isBad||v.prevBad)?'#FFF5F5':isOk?'#F9FFFE':'#fff'
+          }});
+
+          // 날짜 + 결과
+          const topLine=el('div',{style:{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap',marginBottom:'6px'}});
+          topLine.append(
+            el('span',{style:{fontSize:'11px',fontWeight:'700',color:isBad?'var(--er)':isOk?'var(--t2)':'var(--t3)',minWidth:'64px'}},dateStr)
+          );
+          if(!v||v.isFirst){
+            topLine.append(el('span',{style:{fontSize:'10px',color:'var(--t3)',background:'var(--surf2)',padding:'2px 7px',borderRadius:'8px'}},'첫 실사 (비교할 이전 기록 없음)'));
+          } else if(isOk){
+            // ok:true = 기준점 대비 누적 계산도 일치 → 완전 해소
+            topLine.append(el('span',{class:'vok',style:{fontSize:'11px'}},'✅ 일치'));
+          } else if(isBad&&v.prevBad){
+            // 이전 불일치가 지속 누적 중
+            topLine.append(
+              el('span',{class:'ver',style:{fontSize:'10px',padding:'2px 8px'}},`불일치 ${diff>0?'+':''}${diff}개`),
+              el('span',{style:{fontSize:'9px',color:'var(--t3)',background:'#FFF0F0',border:'1px solid #FFCDD2',borderRadius:'8px',padding:'1px 5px',marginLeft:'2px'}},'누적')
+            );
+            const memoBtn=el('button',{style:{
+              background:savedMemo?'#FFF3CD':'none',
+              border:'1px solid '+(savedMemo?'var(--acc)':'var(--bd2)'),
+              borderRadius:'10px',padding:'1px 6px',fontSize:'9px',cursor:'pointer',
+              color:savedMemo?'var(--acc)':'var(--t3)'
+            }},savedMemo?'📝 메모':'+ 메모');
+            memoBtn.addEventListener('click',e=>{
+              e.stopPropagation();
+              state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:!isMemoOpen};
+              render();
+            });
+            topLine.append(memoBtn);
+          } else {
+            topLine.append(el('span',{class:'ver',style:{fontSize:'10px',padding:'2px 8px'}},`불일치 ${diff>0?'+':''}${diff}개`));
+            const memoBtn=el('button',{style:{
+              background:savedMemo?'#FFF3CD':'none',
+              border:'1px solid '+(savedMemo?'var(--acc)':'var(--bd2)'),
+              borderRadius:'10px',padding:'1px 6px',fontSize:'9px',cursor:'pointer',
+              color:savedMemo?'var(--acc)':'var(--t3)'
+            }},savedMemo?'📝 메모':'+ 메모');
+            memoBtn.addEventListener('click',e=>{
+              e.stopPropagation();
+              state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:!isMemoOpen};
+              render();
+            });
+            topLine.append(memoBtn);
+          }
+          topLine.append(el('span',{style:{marginLeft:'auto',fontSize:'10px',color:'var(--t3)'}},`실사합계 ${total}개`));
+          recRow.append(topLine);
+
+          // 계산 내역 항상 표시
+          if(v&&!v.isFirst){
+            const transfer=v.transfer||0;
+            // 중간 출고 레코드 목록 (이전 실사일 ~ 오늘 직전)
+            const midRecs=Object.values(
+              toArr(state.db.site)
+                .filter(r=>r.productId===pid&&r.date>=v.prevDate&&r.date<rec.date)
+                .reduce((map,r)=>{if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;return map;},{})
+            ).sort((a,b)=>a.date.localeCompare(b.date));
+
+            const calcBox=el('div',{style:{
+              fontSize:'10px',background:(isBad||v.prevBad)?'#FFF0F0':'#F8F8F8',
+              padding:'7px 10px',borderRadius:'7px',lineHeight:'1.9',
+              borderLeft:'3px solid '+((isBad||v.prevBad)?'var(--er)':isOk?'var(--ok)':'var(--bd)')
+            }});
+            calcBox.append(
+              el('div',{style:{color:'var(--t3)',marginBottom:'3px'}},`📐 계산 기준: ${fmtDateFull(v.prevDate)} → ${dateStr}`)
+            );
+            // 이전 실사
+            calcBox.append(el('div',null,
+              el('span',{style:{color:'var(--t2)'}},'이전 실사'),
+              el('span',{style:{fontWeight:'700',color:'var(--pm)',float:'right'}},`${v.prevTotal}개`)
+            ));
+            // 중간 출고 내역
+            midRecs.forEach(mr=>{
+              const mSales=parseInt(mr.sales)||0;
+              const mOut=toArr(mr.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
+              const mTotal=mSales+mOut;
+              if(mTotal===0)return;
+              const parts=[];
+              if(mSales>0)parts.push(`판매 ${mSales}`);
+              toArr(mr.outgoing||[]).forEach(o=>{if((parseInt(o.qty)||0)>0)parts.push(`${o.type} ${parseInt(o.qty)}`);});
+              calcBox.append(el('div',{style:{color:'var(--er)'}},
+                el('span',null,`  ${fmtDate(mr.date)} 출고`),
+                el('span',{style:{float:'right'}},`-${mTotal}개 (${parts.join(', ')})`)
+              ));
+            });
+            if(transfer>0){
+              calcBox.append(el('div',{style:{color:'var(--ok)'}},
+                el('span',null,'  반입'),
+                el('span',{style:{float:'right'}},`+${transfer}개`)
+              ));
+            }
+            // 예상 vs 실사
+            calcBox.append(el('div',{style:{borderTop:'1px solid var(--bd)',marginTop:'4px',paddingTop:'4px'}},
+              el('span',{style:{color:'var(--pm)',fontWeight:'600'}},'예상'),
+              el('span',{style:{fontWeight:'700',color:'var(--pm)',float:'right'}},`${v.expected}개`)
+            ));
+            calcBox.append(el('div',null,
+              el('span',{style:{color:isBad?'var(--er)':isOk?'var(--ok)':'var(--t2)',fontWeight:'700'}},'실사'),
+              el('span',{style:{fontWeight:'700',color:isBad?'var(--er)':isOk?'var(--ok)':'var(--t2)',float:'right'}},
+                `${v.actual}개${isBad?'  →  차이 '+(diff>0?'+':'')+diff+'개':''}`)
+            ));
+            recRow.append(calcBox);
+          }
+
+          // 메모
+          if(isMemoOpen&&isBad){
+            recRow.append(buildMemoInput(memoKey,savedMemo,pid,rec.date));
+          } else if(savedMemo&&!isMemoOpen){
+            recRow.append(el('div',{style:{
+              marginTop:'4px',fontSize:'9px',color:'var(--acc)',
+              background:'#FFF8E1',padding:'3px 7px',borderRadius:'5px',wordBreak:'break-all'
+            }},`📝 ${savedMemo}`));
+          }
+
+          body.append(recRow);
+        });
+      });
+    }
+
+    sheet.append(hdr,...(latestStatusBar?[latestStatusBar]:[]),body);
+    overlay.append(sheet);
+    root.append(overlay);
+
+    // focusMo로 자동 스크롤
+    if(focusMo){
+      requestAnimationFrame(()=>{
+        const target=document.getElementById('vmo_'+focusMo.replace('-',''));
+        if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
+      });
+    }
+  }
 
   // ── 엑셀 내보내기 월 선택 바텀시트 ──
   if(state._showExportPicker){
