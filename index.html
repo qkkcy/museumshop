@@ -2082,7 +2082,58 @@ function sitePage(){
         )
       ),
       dayNoteBlock,
-      salesNoteDisplay
+      salesNoteDisplay,
+      // ── 저장된 출고 요약 ──
+      (()=>{
+        const prods=getProds();
+        const date=state.selDate;
+        const items=prods.map(prod=>{
+          const rec=getDateRec(prod.id,date);
+          if(!rec)return null;
+          const s=parseInt(rec.sales)||0;
+          const g=toArr(rec.outgoing||[]).filter(o=>o.type==='증정').reduce((a,o)=>a+(parseInt(o.qty)||0),0);
+          const w=toArr(rec.outgoing||[]).filter(o=>o.type==='폐기').reduce((a,o)=>a+(parseInt(o.qty)||0),0);
+          if(s===0&&g===0&&w===0)return null;
+          return{prod,s,g,w};
+        }).filter(Boolean);
+        if(items.length===0)return null;
+        return el('div',{style:{
+          margin:'6px 0 2px',padding:'8px 12px',
+          background:'var(--surf2)',borderRadius:'var(--r2)',
+          border:'1px solid var(--bd)',display:'flex',flexDirection:'column',gap:'5px'
+        }},
+          el('div',{style:{fontSize:'10px',fontWeight:'700',color:'var(--t2)',marginBottom:'2px'}},
+            '📦 '+fmtDate(date)+' 저장된 출고 내역'),
+          ...items.map(({prod,s,g,w})=>el('div',{style:{
+            display:'flex',alignItems:'center',gap:'6px',
+            padding:'4px 8px',borderRadius:'8px',
+            background:'var(--wb)',border:'1px solid var(--bd)'
+          }},
+            el('span',{class:`cb cb-${prod.cat}`,style:{flexShrink:'0'}},prod.cat),
+            el('span',{style:{fontSize:'11px',fontWeight:'600',flex:'1',color:'var(--t)'}},prod.name),
+            s>0?el('span',{style:{
+              fontSize:'10px',fontWeight:'700',color:'var(--acc)',
+              background:'#FFF9E6',border:'1px solid #FFE082',
+              borderRadius:'8px',padding:'1px 7px'
+            }},`판매 ${s}`):null,
+            g>0?el('span',{style:{
+              fontSize:'10px',fontWeight:'700',color:'var(--ok)',
+              background:'#F1FFF8',border:'1px solid #C8E6C9',
+              borderRadius:'8px',padding:'1px 7px'
+            }},`증정 ${g}`):null,
+            w>0?el('span',{style:{
+              fontSize:'10px',fontWeight:'700',color:'var(--er)',
+              background:'#FFF0F0',border:'1px solid #FFCDD2',
+              borderRadius:'8px',padding:'1px 7px'
+            }},`폐기 ${w}`):null,
+            el('span',{style:{
+              fontSize:'10px',fontWeight:'700',color:'var(--t2)',
+              background:'var(--surf2)',border:'1px solid var(--bd)',
+              borderRadius:'8px',padding:'1px 7px',marginLeft:'2px'
+            }},`총 ${s+g+w}`)
+          ))
+        );
+      })()
     ),
     salesTable(),
     salesSaveBtn
