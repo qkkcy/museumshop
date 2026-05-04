@@ -710,18 +710,51 @@ function exportAll(){
     styles[ri]={fill:'F8F9FA',font:'AAAAAA',sz:9};
   }
 
-  const MAX_COLS=14; // 가장 많은 컬럼 수
+  // 상품 헤더 (카테고리 · 상품명) — 가로 피벗용
+  const prodHdrs=allProds.map(p=>`[${p.cat}] ${p.name}`);
+  const MAX_COLS=Math.max(14,prodHdrs.length+1); // 상품 수+1 vs 기존 14 중 큰 값
 
-  // ── 섹션1: 현재 창고재고 ──
-  addSectionTitle('📦 현재 창고재고 현황 ('+toDay()+')',COLOR.whStock,7);
-  addHeader(['카테고리','제품명','샘플','기준재고','창고반입','창고→현장','창고현재고'],COLOR.whStock);
-  addRows(whStockData,{bg:'EBF5FB'},{bg:'D6EAF8'});
+  // ── 섹션1: 현재 창고재고 (가로 피벗) ──
+  addSectionTitle('📦 현재 창고재고 현황 ('+toDay()+')',COLOR.whStock,MAX_COLS);
+  // 헤더행: 빈칸 + 상품명들
+  {
+    const ri=ws_data.length;
+    ws_data.push(['',...prodHdrs,...Array(Math.max(0,MAX_COLS-prodHdrs.length-1)).fill('')]);
+    styles[ri]={fill:COLOR.whStock,font:'1A5276',bold:true,sz:10,border:true};
+  }
+  // 항목 행
+  const whPivotRows=[
+    ['기준재고',  allProds.map(p=>{const mv=toArr(state.db.wh).filter(r=>r.productId===p.id);return parseInt(state.db.whInit[p.id])||0;})],
+    ['창고반입',  allProds.map(p=>toArr(state.db.wh).filter(r=>r.productId===p.id&&(r.type==='창고반입'||r.type==='입고')).reduce((s,r)=>s+r.qty,0))],
+    ['창고→현장', allProds.map(p=>toArr(state.db.wh).filter(r=>r.productId===p.id&&isFieldTransfer(r.type)).reduce((s,r)=>s+r.qty,0))],
+    ['창고현재고', allProds.map(p=>{const mv=toArr(state.db.wh).filter(r=>r.productId===p.id);const init=parseInt(state.db.whInit[p.id])||0;const inQ=mv.filter(r=>r.type==='창고반입'||r.type==='입고').reduce((s,r)=>s+r.qty,0);const siteQ=mv.filter(r=>isFieldTransfer(r.type)).reduce((s,r)=>s+r.qty,0);return init+inQ-siteQ;})],
+  ];
+  whPivotRows.forEach(([label,vals],i)=>{
+    const ri=ws_data.length;
+    ws_data.push([label,...vals,...Array(Math.max(0,MAX_COLS-vals.length-1)).fill('')]);
+    styles[ri]={fill:i%2===0?'EBF5FB':'D6EAF8',font:'1A5276',sz:10,border:true};
+  });
   addSep();
 
-  // ── 섹션2: 현재 현장 실재고 ──
-  addSectionTitle('🏪 현재 현장 실재고 현황 ('+toDay()+')',COLOR.siteStock,8);
-  addHeader(['카테고리','제품명','샘플','실사보관함','실사인포서랍','당일반입','실사합계','최근실사일'],COLOR.siteStock);
-  addRows(siteStockData,{bg:'FFFDE7'},{bg:'FCF3CF'});
+  // ── 섹션2: 현재 현장 실재고 (가로 피벗) ──
+  addSectionTitle('🏪 현재 현장 실재고 현황 ('+toDay()+')',COLOR.siteStock,MAX_COLS);
+  {
+    const ri=ws_data.length;
+    ws_data.push(['',...prodHdrs,...Array(Math.max(0,MAX_COLS-prodHdrs.length-1)).fill('')]);
+    styles[ri]={fill:COLOR.siteStock,font:'7D6608',bold:true,sz:10,border:true};
+  }
+  const sitePivotRows=[
+    ['실사보관함', allProds.map(p=>{const st=getCurrentStock(p.id);return st?st.storage:'';})],
+    ['실사인포서랍',allProds.map(p=>{const st=getCurrentStock(p.id);return st?st.drawer:'';})],
+    ['당일반입',   allProds.map(p=>{const st=getCurrentStock(p.id);return st&&st.transfer>0?st.transfer:'';})],
+    ['실사합계',   allProds.map(p=>{const st=getCurrentStock(p.id);return st?st.total:'';})],
+    ['최근실사일', allProds.map(p=>{const st=getCurrentStock(p.id);return st&&st.date?st.date:'기준재고';})],
+  ];
+  sitePivotRows.forEach(([label,vals],i)=>{
+    const ri=ws_data.length;
+    ws_data.push([label,...vals,...Array(Math.max(0,MAX_COLS-vals.length-1)).fill('')]);
+    styles[ri]={fill:i%2===0?'FFFDE7':'FCF3CF',font:'7D6608',sz:10,border:true};
+  });
   addSep();
 
   // ── 섹션3: 날짜별 모든 비고 (판매/증정/폐기, 날짜+시간) ──
@@ -754,10 +787,9 @@ function exportAll(){
   else ws_data.push(['데이터 없음']);
   addSep();
 
-  // ── 섹션4-5: 월별 상품별 판매 수량 ──
+  // ── 섹션4-5: 월별 상품별 판매 수량 (가로 피벗) ──
   const salesMonths=[...new Set(toArr(state.db.site).map(r=>r.date.slice(0,7)))].sort();
   addSectionTitle('🛒 월별 상품별 판매 수량',COLOR.dayNote,MAX_COLS);
-  addHeader(['월','카테고리','제품명','판매','증정','폐기','총출고','','','','','','',''],COLOR.dayNote);
   salesMonths.forEach(mo=>{
     const[sy,sm]=mo.split('-');
     const moLabel=`${sy}년 ${parseInt(sm)}월`;
@@ -769,25 +801,43 @@ function exportAll(){
         .filter(r=>r.date>=moFrom&&r.date<=moTo)
         .reduce((map,r)=>{const k=r.productId+'_'+r.date;if(!map[k]||r.ts>map[k].ts)map[k]=r;return map;},{})
     );
-    let moTotalS=0,moTotalG=0,moTotalW=0;
-    let hasAny=false;
-    allProds.forEach((prod,pi)=>{
+    // 상품별 집계
+    const prodVals=allProds.map(prod=>{
       const recs=moRecs.filter(r=>r.productId===prod.id);
       const s=recs.reduce((a,r)=>a+(parseInt(r.sales)||0),0);
       const g=recs.reduce((a,r)=>a+toArr(r.outgoing||[]).filter(o=>o.type==='증정').reduce((x,o)=>x+(parseInt(o.qty)||0),0),0);
       const w=recs.reduce((a,r)=>a+toArr(r.outgoing||[]).filter(o=>o.type==='폐기').reduce((x,o)=>x+(parseInt(o.qty)||0),0),0);
-      if(s===0&&g===0&&w===0)return;
-      hasAny=true;
-      moTotalS+=s;moTotalG+=g;moTotalW+=w;
-      const ri=ws_data.length;
-      ws_data.push([pi===0?moLabel:'',prod.cat,prod.name,s||0,g||0,w||0,s+g+w,...Array(MAX_COLS-7).fill('')]);
-      styles[ri]={fill:pi%2===0?'FFFDE7':'FFF9C4',font:'333333',sz:10,border:true};
+      return{s,g,w};
     });
-    if(hasAny){
-      const riSum=ws_data.length;
-      ws_data.push([moLabel+' 합계','','',moTotalS,moTotalG,moTotalW,moTotalS+moTotalG+moTotalW,...Array(MAX_COLS-7).fill('')]);
-      styles[riSum]={fill:'F9A825',font:'FFFFFF',bold:true,sz:10,border:true};
-    }
+    const hasAny=prodVals.some(v=>v.s||v.g||v.w);
+    if(!hasAny)return;
+    // 월 헤더행: 월명 + 상품명들
+    const riHdr=ws_data.length;
+    ws_data.push([moLabel,...prodHdrs,...Array(Math.max(0,MAX_COLS-prodHdrs.length-1)).fill('')]);
+    styles[riHdr]={fill:'F9A825',font:'FFFFFF',bold:true,sz:10,border:true};
+    // 항목 행: 판매/증정/폐기/총출고
+    const moRows=[
+      ['판매', prodVals.map(v=>v.s||0)],
+      ['증정', prodVals.map(v=>v.g||0)],
+      ['폐기', prodVals.map(v=>v.w||0)],
+      ['총출고',prodVals.map(v=>v.s+v.g+v.w)],
+    ];
+    moRows.forEach(([label,vals],i)=>{
+      const ri=ws_data.length;
+      ws_data.push([label,...vals,...Array(Math.max(0,MAX_COLS-vals.length-1)).fill('')]);
+      styles[ri]={fill:i%2===0?'FFFDE7':'FFF9C4',font:'333333',sz:10,border:true};
+    });
+    // 합계 행
+    const riSum=ws_data.length;
+    const totalS=prodVals.reduce((a,v)=>a+v.s,0);
+    const totalG=prodVals.reduce((a,v)=>a+v.g,0);
+    const totalW=prodVals.reduce((a,v)=>a+v.w,0);
+    ws_data.push(['합계',
+      ...prodVals.map(v=>v.s+v.g+v.w),
+      ...Array(Math.max(0,MAX_COLS-prodHdrs.length-1)).fill('')
+    ]);
+    styles[riSum]={fill:'E67E22',font:'FFFFFF',bold:true,sz:10,border:true};
+    ws_data.push(['',...Array(MAX_COLS-1).fill('')]); // 월 사이 빈 행
   });
   if(salesMonths.length===0)ws_data.push(['데이터 없음',...Array(MAX_COLS-1).fill('')]);
   addSep();
