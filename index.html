@@ -329,22 +329,21 @@ function getCurrentStock(pid){
   return{sample:s,storage:stor,drawer:draw,total:s+stor+draw,date:null,transfer};
 }
 
-// 검증: actual = 오늘 실사합계(샘플+보관함+인포서랍)
-//        expected = 이전실사합계 - (이전실사일 당일 판매 포함, 오늘 직전까지 모든 출고) + 반입
-//        ※ prevTotal은 판매 전 센 실사 수량이므로 이전 실사일 당일 판매도 차감
-// 마지막 "정상" 실사 기록 찾기 (재귀적으로 불일치 체인 거슬러 올라감)
-function getBaseRec(pid,date){
-  const rec=getPrevRec(pid,date);
-  if(!rec)return null;
-  const v=verifyDirect(pid,rec.date,getS(rec),getD(rec));
-  // 직전 실사가 정상이면 그게 기준점
-  if(!v||v.isFirst||v.ok)return rec;
-  // 직전 실사도 불일치면 더 거슬러 올라감
-  return getBaseRec(pid,rec.date)||rec;
+// ── 검증 함수 (첫 실사 기준 누적 계산) ──
+// 기준: 첫 실사 수량 - 첫 실사일 이후 누적 출고(당일 포함) + 반입 = 예상값
+// 예상값 == 실사값 → 일치(자동 해소 포함), 아니면 불일치
+
+// 첫 실사 기록 반환
+function getFirstRec(pid){
+  const recs=toArr(state.db.site).filter(r=>r.productId===pid&&isRealInv(r));
+  const deduped=Object.values(recs.reduce((m,r)=>{
+    if(!m[r.date]||r.ts>m[r.date].ts)m[r.date]=r;return m;
+  },{}));
+  return deduped.sort((a,b)=>a.date.localeCompare(b.date))[0]||null;
 }
 
-// 직전 실사 대비만 계산 (재귀 없는 순수 계산)
-function verifyDirect(pid,date,storage,drawer){
+// 직전 실사 대비 계산 (오버레이 계산 내역 표시용)
+function verifySimple(pid,date,storage,drawer){
   const prod=getProds().find(p=>p.id===pid);
   if(!prod)return null;
   const s=typeof prod.sample==='number'?prod.sample:0;
@@ -353,17 +352,14 @@ function verifyDirect(pid,date,storage,drawer){
   const prevRec=getPrevRec(pid,date);
   if(!prevRec)return{ok:null,actual,expected:null,isFirst:true};
   const prevTotal=s+(parseInt(getS(prevRec))||0)+(parseInt(getD(prevRec))||0);
-  const allOutRecs=Object.values(
+  const totalOut=Object.values(
     toArr(state.db.site)
       .filter(r=>r.productId===pid&&r.date>=prevRec.date&&r.date<date)
-      .reduce((map,r)=>{if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;return map;},{})
-  );
-  const totalOut=allOutRecs.reduce((acc,r)=>
-    acc+(parseInt(r.sales)||0)+toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0)
-  ,0);
+      .reduce((m,r)=>{if(!m[r.date]||r.ts>m[r.date].ts)m[r.date]=r;return m;},{})
+  ).reduce((a,r)=>a+(parseInt(r.sales)||0)+toArr(r.outgoing||[]).reduce((x,o)=>x+(parseInt(o.qty)||0),0),0);
   const transfer=toArr(state.db.wh)
     .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date>prevRec.date&&r.date<=date)
-    .reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+    .reduce((a,r)=>a+(parseInt(r.qty)||0),0);
   const expected=prevTotal-totalOut+transfer;
   return{ok:actual===expected,actual,expected,transfer,prevDate:prevRec.date,prevTotal,prevSales:totalOut};
 }
@@ -374,43 +370,44 @@ function verify(pid,date,storage,drawer){
   const s=typeof prod.sample==='number'?prod.sample:0;
   if(storage===''||storage===undefined||storage===null)return null;
   const actual=s+(parseInt(storage)||0)+(parseInt(drawer)||0);
-  const prevRec=getPrevRec(pid,date);
-  if(!prevRec)return{ok:null,actual,expected:null,isFirst:true};
 
-  // 직전 실사 대비 계산 (오버레이 계산 내역 표시용)
-  const directV=verifyDirect(pid,date,storage,drawer);
+  // 첫 실사 기준점
+  const firstRec=getFirstRec(pid);
+  if(!firstRec)return{ok:null,actual,expected:null,isFirst:true};
+  // 현재 날짜가 첫 실사일이면 isFirst
+  if(date===firstRec.date)return{ok:null,actual,expected:null,isFirst:true};
 
-  // 마지막 정상 실사(기준점)부터 지금까지 누적 계산
-  const baseRec=getBaseRec(pid,date)||prevRec;
-  const baseTotal=s+(parseInt(getS(baseRec))||0)+(parseInt(getD(baseRec))||0);
-  const allOutFromBase=Object.values(
+  const firstTotal=s+(parseInt(getS(firstRec))||0)+(parseInt(getD(firstRec))||0);
+
+  // 첫 실사일 이후 ~ 현재 실사일 당일 포함 출고 합산
+  const totalOut=Object.values(
     toArr(state.db.site)
-      .filter(r=>r.productId===pid&&r.date>=baseRec.date&&r.date<date)
-      .reduce((map,r)=>{if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;return map;},{})
-  );
-  const totalOutFromBase=allOutFromBase.reduce((acc,r)=>
-    acc+(parseInt(r.sales)||0)+toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0)
-  ,0);
-  const transferFromBase=toArr(state.db.wh)
-    .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date>baseRec.date&&r.date<=date)
-    .reduce((s,r)=>s+(parseInt(r.qty)||0),0);
-  const expectedFromBase=baseTotal-totalOutFromBase+transferFromBase;
+      .filter(r=>r.productId===pid&&r.date>=firstRec.date&&r.date<=date)
+      .reduce((m,r)=>{if(!m[r.date]||r.ts>m[r.date].ts)m[r.date]=r;return m;},{})
+  ).reduce((a,r)=>a+(parseInt(r.sales)||0)+toArr(r.outgoing||[]).reduce((x,o)=>x+(parseInt(o.qty)||0),0),0);
+
+  // 첫 실사일 이후 ~ 현재 실사일 반입 합산
+  const transfer=toArr(state.db.wh)
+    .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date>firstRec.date&&r.date<=date)
+    .reduce((a,r)=>a+(parseInt(r.qty)||0),0);
+
+  const expectedFromBase=firstTotal-totalOut+transfer;
   const ok=actual===expectedFromBase;
 
-  // 직전 실사가 불일치였는지 (누적 중인지)
-  const prevV=verifyDirect(pid,prevRec.date,getS(prevRec),getD(prevRec));
-  const prevBad=prevV&&!prevV.isFirst&&!prevV.ok;
+  // 오버레이 표시용 직전 대비 계산
+  const directV=verifySimple(pid,date,storage,drawer);
+  const prevRec=getPrevRec(pid,date);
 
   return{
     ok,actual,
-    expected:directV?directV.expected:expectedFromBase, // 오버레이 표시는 직전 대비
-    expectedFromBase,                                    // 누적 기준 예상값
-    baseDate:baseRec.date,
-    transfer:directV?directV.transfer:transferFromBase,
-    prevDate:prevRec.date,
-    prevTotal:directV?directV.prevTotal:baseTotal,
-    prevSales:directV?directV.prevSales:totalOutFromBase,
-    prevBad
+    expected:directV?directV.expected:expectedFromBase,
+    expectedFromBase,
+    firstDate:firstRec.date,
+    firstTotal,                                          // 첫 실사 합계 (calcBox 표시용)
+    transfer,
+    prevDate:prevRec?prevRec.date:null,
+    prevTotal:directV?directV.prevTotal:firstTotal,
+    prevSales:directV?directV.prevSales:totalOut
   };
 }
 
@@ -496,7 +493,7 @@ function exportSite(){
       폐기수량:toArr(r.outgoing||[]).filter(o=>o.type==='폐기').reduce((s,o)=>s+(parseInt(o.qty)||0),0)||'',
       기타수량:toArr(r.outgoing||[]).filter(o=>o.type==='기타').reduce((s,o)=>s+(parseInt(o.qty)||0),0)||'',
       총출고:((r.sales||0)+toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0))||'',
-      검증:v?(v.isFirst?'첫기록':v.ok?'일치':`불일치(${v.actual-v.expected>0?'+':''}${v.actual-v.expected})`):'-',
+      검증:v?(v.isFirst?'첫기록':v.ok?'일치':`불일치(${(v.actual-(v.expectedFromBase??v.expected))>0?'+':''}${v.actual-(v.expectedFromBase??v.expected)})`):'-',
       불일치메모:r.verifyNote||'',
       비고:r.note||''
     };
@@ -648,7 +645,7 @@ function exportAll(){
     const prod=allProds.find(p=>p.id===r.productId);
     const total=getTotal(getS(r),getD(r),prod);
     const v=verify(r.productId,r.date,getS(r),getD(r));
-    const verStr=v?(v.isFirst?'첫기록':v.ok?'일치':`불일치(${v.actual-v.expected>0?'+':''}${v.actual-v.expected})`):'-';
+    const verStr=v?(v.isFirst?'첫기록':v.ok?'일치':`불일치(${(v.actual-(v.expectedFromBase??v.expected))>0?'+':''}${v.actual-(v.expectedFromBase??v.expected)})`):'-';
     const giftQ=toArr(r.outgoing||[]).filter(o=>o.type==='증정').reduce((s,o)=>s+(parseInt(o.qty)||0),0);
     const wasteQ=toArr(r.outgoing||[]).filter(o=>o.type==='폐기').reduce((s,o)=>s+(parseInt(o.qty)||0),0);
     return[r.date,r.cat,r.productName,r.sample||0,
@@ -1142,7 +1139,7 @@ function pillsEl(items,active,onClick,sm){return el('div',{class:'pills'},...ite
 function vBadgeMemo(v,pid,date){
   if(!v||v.isFirst)return el('span',{class:'vna'},'첫기록');
   if(v.ok)return el('span',{class:'vok'},'✅');
-  const diff=v.actual-v.expected;
+  const diff=v.actual-(v.expectedFromBase!==undefined?v.expectedFromBase:v.expected);
   const memoKey=date+'_'+pid;
   const isOpen=!!state.verifyMemoOpen[memoKey];
   // 저장된 메모 불러오기
@@ -1388,7 +1385,7 @@ function currentStockTable(){
 
       if(hasUnsaved){
         const v=verify(prod.id,selDate,draft.storage||'0',draft.drawer||'0');
-        const diff=v&&!v.isFirst&&!v.ok?v.actual-v.expected:null;
+        const diff=v&&!v.isFirst&&!v.ok?(v.actual-(v.expectedFromBase??v.expected)):null;
         const badge=el('div',{style:{cursor:'pointer',display:'inline-flex',alignItems:'center',gap:'3px'}});
         badge.addEventListener('click',openOverlay);
         badge.append(
@@ -1408,7 +1405,7 @@ function currentStockTable(){
         const v=verify(prod.id,latestRec.date,getS(latestRec),getD(latestRec));
         const isBad=v&&!v.isFirst&&!v.ok;
         const isOk=v&&!v.isFirst&&v.ok;
-        const diff=isBad?v.actual-v.expected:null;
+        const diff=isBad?v.actual-(v.expectedFromBase!==undefined?v.expectedFromBase:v.expected):null;
 
         const statusEl=el('div',{style:{
           cursor:'pointer',display:'inline-flex',alignItems:'center',gap:'4px',
@@ -1922,7 +1919,7 @@ function sitePage(){
     if(!rec||!isRealInv(rec))return;
     const v=verify(prod.id,rec.date,getS(rec),getD(rec));
     if(v&&!v.isFirst&&!v.ok)
-      mismatchItems.push({prod,rec,diff:v.actual-v.expected});
+      mismatchItems.push({prod,rec,diff:v.actual-(v.expectedFromBase!==undefined?v.expectedFromBase:v.expected)});
   });
 
   const mismatchBanner=mismatchItems.length===0?null:el('div',{style:{
@@ -2709,7 +2706,7 @@ function render(){
       }},
         el('span',{style:{fontSize:'10px',color:'var(--t3)'}},'최신 실사 ('+fmtDateFull(latestInvRec.date)+')'),
         lBad?el('span',{class:'ver',style:{fontSize:'11px',marginLeft:'auto'}},
-            `불일치 ${lv.actual-lv.expected>0?'+':''}${lv.actual-lv.expected}개`)
+            `불일치 ${lv.actual-lv.expectedFromBase>0?'+':''}${lv.actual-lv.expectedFromBase}개`)
           :lOk?el('span',{class:'vok',style:{fontSize:'11px',marginLeft:'auto'}},'✅ 일치')
           :lFirst?el('span',{style:{fontSize:'10px',color:'var(--t3)',marginLeft:'auto'}},'첫 실사')
           :null
@@ -2785,7 +2782,8 @@ function render(){
           const v=verify(pid,rec.date,getS(rec),getD(rec));
           const isBad=v&&!v.isFirst&&!v.ok;
           const isOk=v&&!v.isFirst&&v.ok;
-          const diff=isBad?v.actual-v.expected:null;
+          // diff는 누적 기준(expectedFromBase)으로 계산해야 실제 불일치 수량이 표시됨
+          const diff=isBad?(v.actual-(v.expectedFromBase!==undefined?v.expectedFromBase:v.expected)):null;
           const memoKey=rec.date+'_'+pid;
           const savedMemo=rec.verifyNote||'';
           const isMemoOpen=!!state.verifyMemoOpen?.[memoKey];
@@ -2793,7 +2791,7 @@ function render(){
 
           const recRow=el('div',{style:{
             padding:'8px 16px 10px',borderBottom:'.5px solid var(--surf2)',
-            background:(isBad||v.prevBad)?'#FFF5F5':isOk?'#F9FFFE':'#fff'
+            background:isBad?'#FFF5F5':isOk?'#F9FFFE':'#fff'
           }});
 
           // 날짜 + 결과
@@ -2806,26 +2804,11 @@ function render(){
           } else if(isOk){
             // ok:true = 기준점 대비 누적 계산도 일치 → 완전 해소
             topLine.append(el('span',{class:'vok',style:{fontSize:'11px'}},'✅ 일치'));
-          } else if(isBad&&v.prevBad){
-            // 이전 불일치가 지속 누적 중
-            topLine.append(
-              el('span',{class:'ver',style:{fontSize:'10px',padding:'2px 8px'}},`불일치 ${diff>0?'+':''}${diff}개`),
-              el('span',{style:{fontSize:'9px',color:'var(--t3)',background:'#FFF0F0',border:'1px solid #FFCDD2',borderRadius:'8px',padding:'1px 5px',marginLeft:'2px'}},'누적')
-            );
-            const memoBtn=el('button',{style:{
-              background:savedMemo?'#FFF3CD':'none',
-              border:'1px solid '+(savedMemo?'var(--acc)':'var(--bd2)'),
-              borderRadius:'10px',padding:'1px 6px',fontSize:'9px',cursor:'pointer',
-              color:savedMemo?'var(--acc)':'var(--t3)'
-            }},savedMemo?'📝 메모':'+ 메모');
-            memoBtn.addEventListener('click',e=>{
-              e.stopPropagation();
-              state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:!isMemoOpen};
-              render();
-            });
-            topLine.append(memoBtn);
           } else {
-            topLine.append(el('span',{class:'ver',style:{fontSize:'10px',padding:'2px 8px'}},`불일치 ${diff>0?'+':''}${diff}개`));
+            // 불일치
+            topLine.append(
+              el('span',{class:'ver',style:{fontSize:'10px',padding:'2px 8px'}},`불일치 ${diff>0?'+':''}${diff}개`)
+            );
             const memoBtn=el('button',{style:{
               background:savedMemo?'#FFF3CD':'none',
               border:'1px solid '+(savedMemo?'var(--acc)':'var(--bd2)'),
@@ -2842,30 +2825,32 @@ function render(){
           topLine.append(el('span',{style:{marginLeft:'auto',fontSize:'10px',color:'var(--t3)'}},`실사합계 ${total}개`));
           recRow.append(topLine);
 
-          // 계산 내역 항상 표시
+          // 계산 내역 — 첫 실사 기준 누적으로 표시
           if(v&&!v.isFirst){
+            const firstDate=v.firstDate||v.prevDate;
+            const firstTotal=v.firstTotal||v.prevTotal; // 첫 실사 합계
             const transfer=v.transfer||0;
-            // 중간 출고 레코드 목록 (이전 실사일 ~ 오늘 직전)
+            // 첫 실사일 이후 ~ 현재 실사일 당일 포함 출고 목록
             const midRecs=Object.values(
               toArr(state.db.site)
-                .filter(r=>r.productId===pid&&r.date>=v.prevDate&&r.date<rec.date)
+                .filter(r=>r.productId===pid&&r.date>=firstDate&&r.date<=rec.date)
                 .reduce((map,r)=>{if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;return map;},{})
             ).sort((a,b)=>a.date.localeCompare(b.date));
 
             const calcBox=el('div',{style:{
-              fontSize:'10px',background:(isBad||v.prevBad)?'#FFF0F0':'#F8F8F8',
+              fontSize:'10px',background:isBad?'#FFF0F0':'#F8F8F8',
               padding:'7px 10px',borderRadius:'7px',lineHeight:'1.9',
-              borderLeft:'3px solid '+((isBad||v.prevBad)?'var(--er)':isOk?'var(--ok)':'var(--bd)')
+              borderLeft:'3px solid '+(isBad?'var(--er)':isOk?'var(--ok)':'var(--bd)')
             }});
             calcBox.append(
-              el('div',{style:{color:'var(--t3)',marginBottom:'3px'}},`📐 계산 기준: ${fmtDateFull(v.prevDate)} → ${dateStr}`)
+              el('div',{style:{color:'var(--t3)',marginBottom:'3px'}},`📐 계산 기준: ${fmtDateFull(firstDate)} → ${dateStr}`)
             );
-            // 이전 실사
+            // 첫 실사
             calcBox.append(el('div',null,
-              el('span',{style:{color:'var(--t2)'}},'이전 실사'),
-              el('span',{style:{fontWeight:'700',color:'var(--pm)',float:'right'}},`${v.prevTotal}개`)
+              el('span',{style:{color:'var(--t2)'}},'첫 실사'),
+              el('span',{style:{fontWeight:'700',color:'var(--pm)',float:'right'}},`${v.firstTotal||firstTotal}개`)
             ));
-            // 중간 출고 내역
+            // 출고 내역 (당일 포함)
             midRecs.forEach(mr=>{
               const mSales=parseInt(mr.sales)||0;
               const mOut=toArr(mr.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
@@ -2885,10 +2870,10 @@ function render(){
                 el('span',{style:{float:'right'}},`+${transfer}개`)
               ));
             }
-            // 예상 vs 실사
+            // 예상 vs 실사 (모두 firstRec 누적 기준)
             calcBox.append(el('div',{style:{borderTop:'1px solid var(--bd)',marginTop:'4px',paddingTop:'4px'}},
               el('span',{style:{color:'var(--pm)',fontWeight:'600'}},'예상'),
-              el('span',{style:{fontWeight:'700',color:'var(--pm)',float:'right'}},`${v.expected}개`)
+              el('span',{style:{fontWeight:'700',color:'var(--pm)',float:'right'}},`${v.expectedFromBase}개`)
             ));
             calcBox.append(el('div',null,
               el('span',{style:{color:isBad?'var(--er)':isOk?'var(--ok)':'var(--t2)',fontWeight:'700'}},'실사'),
