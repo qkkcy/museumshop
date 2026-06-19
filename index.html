@@ -175,7 +175,13 @@ const CATS=["굿즈","도서","포장"],KEY="museum_v6";
 const CAT_ROW={굿즈:'row-goods',도서:'row-book',포장:'row-pack'};
 const CAT_BG={굿즈:'#F2FAF2',도서:'#EEF4FD',포장:'#FDFBEE'};
 const bgS=cat=>({backgroundColor:CAT_BG[cat]});
-const toDay=()=>new Date().toISOString().slice(0,10);
+const toDay=()=>{
+  // UTC 기준이 아닌 한국시간(KST, UTC+9) 기준 오늘 날짜를 반환
+  // (toISOString()은 UTC라서 한국시간 새벽 0~9시 사이에 날짜가 하루 늦게 계산되는 문제 수정)
+  const d=new Date();
+  const kst=new Date(d.getTime()+9*60*60*1000);
+  return kst.toISOString().slice(0,10);
+};
 const uid=()=>Math.random().toString(36).slice(2)+Date.now();
 const fmtDate=d=>{const[y,m,dd]=d.split('-');return`${m}/${dd}`;};
 const fmtDateFull=d=>{const[y,m,dd]=d.split('-');return`${y}. ${m}. ${dd}.`;};
