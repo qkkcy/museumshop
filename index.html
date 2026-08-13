@@ -1,0 +1,3202 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>오디움 뮤지엄샵</title>
+
+<!-- PWA -->
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="뮤지엄샵">
+<meta name="theme-color" content="#1A1A1A">
+<link rel="manifest" href="manifest.json">
+
+<!-- Apple Touch Icon - Audeum inspired -->
+<link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjEwMCIgZmlsbD0iIzFBMUExQSIvPgogIDx0ZXh0IHg9IjI1NiIgeT0iMjQwIiBmb250LXNpemU9IjIwMCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+8J+TozwvdGV4dD4KICA8bGluZSB4MT0iODAiIHkxPSIzNDAiIHgyPSI0MzIiIHkyPSIzNDAiIHN0cm9rZT0iI0U4RTREQyIgc3Ryb2tlLXdpZHRoPSIxIiBvcGFjaXR5PSIwLjQiLz4KICA8dGV4dCB4PSIyNTYiIHk9IjM5MCIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsc2VyaWYiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSIzMDAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNFOEU0REMiIGxldHRlci1zcGFjaW5nPSI4Ij7smKTrlJTsm4A8L3RleHQ+CiAgPHRleHQgeD0iMjU2IiB5PSI0NDgiIGZvbnQtZmFtaWx5PSJHZW9yZ2lhLHNlcmlmIiBmb250LXNpemU9IjMyIiBmb250LXdlaWdodD0iMzAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSJyZ2JhKDIzMiwyMjgsMjIwLDAuNikiIGxldHRlci1zcGFjaW5nPSI2Ij7rrqTsp4Dsl4Tsg7U8L3RleHQ+Cjwvc3ZnPg==">
+
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F5F3EE;--surf:#FFF;--surf2:#F0EDE6;
+  --p:#1A1A1A;--pl:#EBEBEB;--pm:#444444;
+  --acc:#8B6914;--al:#FDF3DC;
+  --t:#1C1C1C;--t2:#5A5A5A;--t3:#9A9A9A;
+  --bd:#DDD9D0;--bd2:#C8C4BB;
+  --ok:#1E6B45;--okb:#E6F4EE;
+  --er:#A3281C;--erb:#FCE8E6;
+  --wb:#FFF8E1;
+  --r:12px;--r2:8px;--r3:20px;
+  --sh:0 1px 4px rgba(0,0,0,.09);
+  --row-굿즈:#F2FAF2;--row-도서:#EEF4FD;--row-포장:#FDFBEE;
+}
+body{font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--t);-webkit-font-smoothing:antialiased}
+.tbl td[style]{-webkit-print-color-adjust:exact;print-color-adjust:exact;color-adjust:exact}
+input,select,button{font-family:inherit}
+#app{max-width:100%;margin:0 auto;min-height:100vh;padding-bottom:calc(68px + env(safe-area-inset-bottom))}
+.nav{position:fixed;bottom:0;width:100%;background:#fff;border-top:.5px solid var(--bd);display:flex;z-index:20;padding-bottom:env(safe-area-inset-bottom)}
+/* Header */
+.hdr{background:var(--p);padding:10px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:30}
+.hdr-logo{display:flex;align-items:center;gap:10px}
+.hdr-logo-img{height:32px;width:auto}
+.hdr-logo-text{display:flex;flex-direction:column;gap:2px}
+.hdr-title{font-family:'Noto Serif KR',serif;font-size:15px;color:#fff;letter-spacing:4px;font-weight:400}
+.hdr-line{width:100%;height:0.5px;background:rgba(255,255,255,0.4);margin:2px 0}
+.hdr-sub{font-size:8px;color:rgba(255,255,255,.5);letter-spacing:2px}
+.hdr-r{margin-left:auto;display:flex;gap:6px}
+.hdr-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:4px 10px;color:#fff;font-size:10px;cursor:pointer;white-space:nowrap;letter-spacing:.5px}
+/* Nav */
+.nb{flex:1;padding:8px 0 6px;border:none;background:none;cursor:pointer;font-size:10px;color:var(--t3);display:flex;flex-direction:column;align-items:center;gap:2px}
+.nb.on{color:var(--p)}
+.nb-dot{width:4px;height:4px;border-radius:50%;background:var(--p);opacity:0}
+.nb.on .nb-dot{opacity:1}
+/* Layout */
+.page{display:flex;flex-direction:column;gap:0}
+.card{background:#fff;border-radius:var(--r);box-shadow:var(--sh);margin:10px 12px;padding:12px}
+.ct{font-size:11px;font-weight:600;color:var(--t2);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.ct-act{font-size:10px;color:var(--p);cursor:pointer;padding:2px 7px;border:1px solid var(--pl);border-radius:10px;background:var(--pl);white-space:nowrap;flex-shrink:0}
+.label{font-size:10px;color:var(--t2);margin-bottom:3px;display:block}
+.inp{width:100%;border:1px solid var(--bd);border-radius:var(--r2);padding:7px 10px;font-size:13px;color:var(--t);background:#fff;outline:none;transition:.15s}
+.inp:focus{border-color:var(--p);box-shadow:0 0 0 2px var(--pl)}
+.sel{appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath d='M2 4l4 4 4-4' stroke='%235A5A5A' stroke-width='1.5' fill='none'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;padding-right:24px;cursor:pointer}
+.pills{display:flex;gap:4px;flex-wrap:wrap}
+.pill{padding:4px 10px;border-radius:var(--r3);border:1.5px solid var(--bd);background:#fff;font-size:11px;cursor:pointer;color:var(--t2)}
+.pill.on{background:var(--p);border-color:var(--p);color:#fff;font-weight:600}
+.pill-sm{padding:3px 8px;font-size:10px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* Submit btn */
+.sbtn{width:calc(100% - 24px);margin:4px 12px 10px;padding:13px;background:var(--p);color:#fff;border:none;border-radius:var(--r);font-size:13px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.sbtn:active{background:var(--pm)}
+.sbtn.sm{width:100%;margin:8px 0 0;padding:10px;font-size:12px}
+.sbtn.sec{background:var(--t3)}
+.sbtn.teal{background:var(--pm)}
+/* Date bar */
+.date-bar{display:flex;align-items:center;gap:8px;padding:8px 12px 0}
+.date-inp{border:1px solid var(--bd);border-radius:var(--r2);padding:6px 8px;font-size:12px;background:#fff;color:var(--t);outline:none;flex:1}
+.date-inp:focus{border-color:var(--p)}
+/* staff CSS 제거됨 */
+/* Tables */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 12px 8px}
+.tbl{border-collapse:collapse;width:100%;font-size:11px}
+.tbl th{background:var(--p);color:#fff;padding:6px 5px;text-align:center;font-weight:600;white-space:nowrap}
+.tbl th:first-child{text-align:left;position:sticky;left:0;z-index:3;min-width:80px}
+.tbl td{padding:5px 4px;border-bottom:.5px solid var(--bd);text-align:center;vertical-align:middle;white-space:nowrap}
+.tbl td:first-child{text-align:left;position:sticky;left:0;background:#fff;z-index:1;font-weight:500;font-size:10px}
+.tbl tr:nth-child(even) td{background:#FAFAF8}
+.tbl tr:nth-child(even) td:first-child{background:#FAFAF8}
+.tbl tr.row-goods td{background:#F2FAF2!important}.tbl tr.row-goods td:first-child{background:#F2FAF2!important}
+.tbl tr.row-book td{background:#EEF4FD!important}.tbl tr.row-book td:first-child{background:#EEF4FD!important}
+.tbl tr.row-pack td{background:#FDFBEE!important}.tbl tr.row-pack td:first-child{background:#FDFBEE!important}
+.tbl tr:last-child td{border:none}
+/* Inline inputs in table */
+.t-inp{width:44px;border:1px solid var(--bd);border-radius:5px;padding:3px 4px;font-size:11px;text-align:center;outline:none;background:#fff;-moz-appearance:textfield}
+.t-inp::-webkit-outer-spin-button,.t-inp::-webkit-inner-spin-button{-webkit-appearance:none}
+.t-inp:focus{border-color:var(--p);background:var(--pl)}
+/* Sales +/- in table */
+.t-sales{display:flex;align-items:center;gap:2px;justify-content:center}
+.t-btn{width:22px;height:22px;border:1px solid var(--bd);background:var(--surf2);border-radius:4px;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--p);line-height:1;flex-shrink:0;-webkit-tap-highlight-color:transparent}
+.t-btn:active{background:var(--pl)}
+.t-num{min-width:20px;text-align:center;font-size:12px;font-weight:700;color:var(--acc)}
+/* Category badges */
+.cb{font-size:8px;padding:1px 4px;border-radius:6px;margin-left:2px;font-weight:600}
+.cb-굿즈{background:#E8F4E9;color:#2C4A2E}
+.cb-도서{background:#E8EEF8;color:#2A3F7A}
+.cb-포장{background:#FDF3DC;color:#8B6914}
+/* Verify badges */
+.vok{background:var(--okb);color:var(--ok);padding:1px 5px;border-radius:8px;font-size:9px;font-weight:600}
+.ver{background:var(--erb);color:var(--er);padding:1px 5px;border-radius:8px;font-size:9px;font-weight:600}
+.vna{color:var(--t3);font-size:9px}
+/* Auto cell */
+.auto-c{font-weight:700;color:var(--p)}
+/* Info boxes */
+.ibox{border-radius:var(--r2);padding:7px 10px;font-size:11px;margin:6px 12px;line-height:1.5}
+.ibox.ok{background:var(--okb);color:var(--ok)}
+.ibox.er{background:var(--erb);color:var(--er)}
+.ibox.info{background:var(--wb);color:var(--acc)}
+/* Init rows */
+.init-row{display:flex;align-items:center;gap:6px;padding:6px 0;border-bottom:.5px solid var(--bd)}
+.init-row:last-child{border:none}
+.init-name{flex:1;font-size:11px;font-weight:500;min-width:0}
+.init-inp{width:50px;border:1px solid var(--bd);border-radius:5px;padding:4px 5px;font-size:11px;text-align:center;outline:none}
+.init-inp:focus{border-color:var(--p)}
+/* Record list */
+.rec{background:#fff;border-radius:var(--r);margin:5px 12px;padding:10px 12px;box-shadow:var(--sh);border-left:3px solid var(--pm)}
+.rec-name{font-size:12px;font-weight:600}
+.rec-meta{font-size:9px;color:var(--t3);margin-top:1px}
+.rec-nums{display:flex;background:var(--surf2);border-radius:6px;overflow:hidden;margin-top:6px}
+.rn{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;padding:4px 2px;border-right:.5px solid var(--bd)}
+.rn:last-child{border:none}
+.rn-l{font-size:8px;color:var(--t3)}
+.rn-v{font-size:12px;font-weight:700}
+.del-btn{background:none;border:none;color:var(--t3);font-size:15px;cursor:pointer;padding:0 3px}
+.sec-label{font-size:9px;font-weight:600;color:var(--t3);letter-spacing:.07em;padding:10px 12px 3px;text-transform:uppercase}
+.empty{text-align:center;padding:24px;color:var(--t3);font-size:12px}
+/* Wh record */
+.wh-rec{background:#fff;border-radius:var(--r);margin:5px 12px;padding:9px 12px;box-shadow:var(--sh);display:flex;align-items:center;justify-content:space-between}
+.wh-badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:10px}
+.wh-in{background:var(--okb);color:var(--ok)}
+.wh-out{background:var(--erb);color:var(--er)}
+.wh-site{background:var(--pl);color:var(--p)}
+/* Toast */
+.toast{position:fixed;bottom:76px;left:50%;transform:translateX(-50%);background:rgba(28,28,28,.9);backdrop-filter:blur(8px);color:#fff;padding:9px 18px;border-radius:var(--r3);font-size:12px;font-weight:500;z-index:100;white-space:nowrap;pointer-events:none}
+/* Landscape */
+
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+// ── DATA ────────────────────────────────────────────────────
+const PRODUCTS=[
+  {id:"G001",cat:"굿즈",name:"오디움 연필 3입",sample:5,drawer:true},
+  {id:"G002",cat:"굿즈",name:"노말 노트(White)",sample:4,drawer:false},
+  {id:"G003",cat:"굿즈",name:"다이어리(Pale Grey)",sample:4,drawer:false},
+  {id:"G004",cat:"굿즈",name:"다이어리(Warm)",sample:4,drawer:false},
+  {id:"G005",cat:"굿즈",name:"오디움 USB",sample:0,drawer:false},
+  {id:"G006",cat:"굿즈",name:"오디움 에코백",sample:0,drawer:false},
+  {id:"G007",cat:"굿즈",name:"라미 이콘 볼펜",sample:0,drawer:false},
+  {id:"B001",cat:"도서",name:"디자인의 디자인",sample:3,drawer:false},
+  {id:"B002",cat:"도서",name:"백(白)-하라켄야",sample:3,drawer:false},
+  {id:"B003",cat:"도서",name:"작은 건축",sample:3,drawer:false},
+  {id:"B004",cat:"도서",name:"나, 건축가 구마겐고",sample:3,drawer:false},
+  {id:"B005",cat:"도서",name:"점선면",sample:3,drawer:false},
+  {id:"B006",cat:"도서",name:"저공비행",sample:3,drawer:false},
+  {id:"B007",cat:"도서",name:"의성어 의태어 건축",sample:3,drawer:false},
+  {id:"P001",cat:"포장",name:"종이백 소",sample:0,drawer:false},
+  {id:"P002",cat:"포장",name:"종이백 중",sample:0,drawer:false},
+  {id:"P003",cat:"포장",name:"종이백 대",sample:0,drawer:false},
+];
+const CATS=["굿즈","도서","포장"],KEY="museum_v6";
+const CAT_ROW={굿즈:'row-goods',도서:'row-book',포장:'row-pack'};
+const CAT_BG={굿즈:'#F2FAF2',도서:'#EEF4FD',포장:'#FDFBEE'};
+const bgS=cat=>({backgroundColor:CAT_BG[cat]});
+const toDay=()=>{
+  // UTC 기준이 아닌 한국시간(KST, UTC+9) 기준 오늘 날짜를 반환
+  // (toISOString()은 UTC라서 한국시간 새벽 0~9시 사이에 날짜가 하루 늦게 계산되는 문제 수정)
+  const d=new Date();
+  const kst=new Date(d.getTime()+9*60*60*1000);
+  return kst.toISOString().slice(0,10);
+};
+const uid=()=>Math.random().toString(36).slice(2)+Date.now();
+const fmtDate=d=>{const[y,m,dd]=d.split('-');return`${m}/${dd}`;};
+const fmtDateFull=d=>{const[y,m,dd]=d.split('-');return`${y}. ${m}. ${dd}.`;};
+const fmtTs=ts=>{if(!ts)return'';const d=new Date(ts);const mo=String(d.getMonth()+1).padStart(2,'0');const dd=String(d.getDate()).padStart(2,'0');const hh=String(d.getHours()).padStart(2,'0');const mi=String(d.getMinutes()).padStart(2,'0');return`${mo}/${dd} ${hh}:${mi}`;};
+
+// ── STORAGE ─────────────────────────────────────────────────
+function migrateV4(){
+  try{
+    const raw=localStorage.getItem('museum_v4');
+    if(!raw)return null;
+    const old=JSON.parse(raw);
+    // site 레코드 변환: storagePm>storageAm 우선, 날짜+품목 중복 제거
+    const seen={};
+    const newSite=[];
+    [...(old.site||[])].sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts).forEach(r=>{
+      const key=r.productId+'_'+r.date;
+      if(seen[key])return;
+      const hasPm=r.storagePm!==''&&r.storagePm!=null;
+      const hasAm=r.storageAm!==''&&r.storageAm!=null;
+      if(hasPm||hasAm){
+        seen[key]=true;
+        newSite.push({...r,storage:hasPm?r.storagePm:r.storageAm,drawer:hasPm?(r.drawerPm||0):(r.drawerAm||0)});
+      }
+    });
+    // tr(반입기록)을 wh 반출로 병합
+    const trAsWh=(old.tr||[]).map(r=>({...r,type:'현장반입',id:'tr_'+r.id}));
+    const whMerged=[...(old.wh||[]),...trAsWh];
+    return{site:newSite,wh:whMerged,siteInit:old.siteInit||{},whInit:old.whInit||{},products:old.products||[]};
+  }catch(e){return null;}
+}
+
+// ── FIREBASE ─────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBqtL_Dx3VVMr6zIsUfm0oZWjiBQzy79so",
+  authDomain: "museumshop-16316.firebaseapp.com",
+  projectId: "museumshop-16316",
+  storageBucket: "museumshop-16316.firebasestorage.app",
+  messagingSenderId: "25023601887",
+  appId: "1:25023601887:web:1bfceee0923bb0437b1d6a",
+  databaseURL: "https://museumshop-16316-default-rtdb.asia-southeast1.firebasedatabase.app"
+};
+firebase.initializeApp(firebaseConfig);
+const db_ref = firebase.database().ref('museumshop');
+
+// Firebase는 배열을 객체로 변환 → 항상 배열로 변환
+function toArr(v){if(!v)return[];if(Array.isArray(v))return v;return Object.values(v);}
+
+function loadDb(){
+  try{const r=localStorage.getItem(KEY);
+    if(r){const d=JSON.parse(r);return{site:[],wh:[],siteInit:{},whInit:{},products:[],dayNotes:{},...d,site:toArr(d.site),wh:toArr(d.wh),products:toArr(d.products)};}
+  }catch{}
+  const migrated=migrateV4();
+  if(migrated){
+    try{localStorage.setItem(KEY,JSON.stringify(migrated));}catch{}
+    return migrated;
+  }
+  return{site:[],wh:[],siteInit:{},whInit:{},products:[]};
+}
+function saveDb(d){
+  try{localStorage.setItem(KEY,JSON.stringify(d));}catch{}
+  db_ref.set(d).catch(e=>console.error('Firebase 저장 오류',e));
+}
+
+// Firebase 실시간 동기화: 원격 변경사항 수신
+db_ref.on('value', snapshot => {
+  const data = snapshot.val();
+  if(!data) return;
+  // 현재 내가 막 저장한 데이터와 다를 때만 업데이트 (무한루프 방지)
+  const remoteStr = JSON.stringify(data);
+  const localStr = JSON.stringify(state.db);
+  if(remoteStr !== localStr){
+    state.db = {site:[],wh:[],siteInit:{},whInit:{},products:[],dayNotes:{},
+      ...data,
+      site:toArr(data.site),
+      wh:toArr(data.wh),
+      products:toArr(data.products)
+    };
+    try{localStorage.setItem(KEY, JSON.stringify(state.db));}catch{}
+    if(state._draftInit) {
+      state.draft = initDraft(state.selDate);
+    }
+    render();
+  }
+});
+
+// ── UTILS ───────────────────────────────────────────────────
+function getProds(){return(state.db.products&&state.db.products.length>0)?state.db.products:PRODUCTS;}
+
+function getS(r){return r.storage!==undefined?r.storage:r.storageAm;}
+function getD(r){return r.drawer!==undefined?r.drawer:r.drawerAm;}
+
+function getTotal(storage,drawer,prod){
+  if(!prod)return null;
+  const s=typeof prod.sample==='number'?prod.sample:0;
+  if(storage===''||storage===undefined||storage===null)return null;
+  return s+(parseInt(storage)||0)+(parseInt(drawer)||0);
+}
+
+// 실제 실사 기록인지 확인 (판매만 입력한 경우 storage가 없음)
+function isRealInv(r){const s=getS(r);return s!==''&&s!==null&&s!==undefined;}
+
+// 최신 실사 기록 (date 이전 포함, 실재고 수량 있는 것만)
+function getLatestRec(pid,date){
+  return toArr(state.db.site)
+    .filter(r=>r.productId===pid&&r.date<=date&&isRealInv(r))
+    .sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts)[0]||null;
+}
+
+// 특정 날짜의 기록
+function getDateRec(pid,date){
+  return toArr(state.db.site)
+    .filter(r=>r.productId===pid&&r.date===date)
+    .sort((a,b)=>b.ts-a.ts)[0]||null;
+}
+
+// 이전 실사 기록 (date 미만, 실재고 수량 있는 것만)
+function getPrevRec(pid,date){
+  return toArr(state.db.site)
+    .filter(r=>r.productId===pid&&r.date<date&&isRealInv(r))
+    .sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts)[0]||null;
+}
+
+// 기간 반입 합산 (창고→현장 이동: 창고→현장, 현장반입, 창고반출, 반출 모두 포함)
+function isFieldTransfer(type){return type==='창고→현장'||type==='현장반입'||type==='창고반출'||type==='반출';}
+function getTransfers(pid,afterDate,toDate){
+  return toArr(state.db.wh)
+    .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date>afterDate&&r.date<=toDate)
+    .reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+}
+
+// 현재 실재고 (최신 실사 기록 기준, 반입은 참고용으로만)
+function getCurrentStock(pid){
+  const prod=getProds().find(p=>p.id===pid);
+  if(!prod)return null;
+  const s=typeof prod.sample==='number'?prod.sample:0;
+  const rec=getLatestRec(pid,toDay());
+  if(rec){
+    // 최신 실사일 다음날부터 오늘까지 반입만 집계 (당일 이중계산 방지)
+    const transfer=getTransfers(pid,rec.date,toDay());
+    const stor=parseInt(getS(rec))||0;
+    const draw=parseInt(getD(rec))||0;
+    return{sample:s,storage:stor,drawer:draw,total:s+stor+draw,date:rec.date,transfer};
+  }
+  // 실사 기록 없음 → 기준재고 사용. 반입은 앱 운영 시작일(기준재고 세팅 이후)부터만
+  const init=state.db.siteInit[pid]||{};
+  // 기준재고가 설정된 경우 '0001-01-01' 대신 초기 날짜 이후부터 집계
+  // siteInit에 날짜 정보가 없으므로 전체 기간 집계(기존 동작 유지, 단 명시적으로 표기)
+  const transfer=getTransfers(pid,'0001-01-01',toDay());
+  const stor=init.storage||0;
+  const draw=init.drawer||0;
+  return{sample:s,storage:stor,drawer:draw,total:s+stor+draw,date:null,transfer};
+}
+
+// 현재 창고재고 (기준재고 + 누적 창고반입 - 누적 창고→현장 이동)
+function getCurrentWhStock(pid){
+  const mv=toArr(state.db.wh).filter(r=>r.productId===pid);
+  const init=parseInt(state.db.whInit[pid])||0;
+  const inQ=mv.filter(r=>r.type==='창고반입'||r.type==='입고').reduce((s,r)=>s+r.qty,0);
+  const siteQ=mv.filter(r=>isFieldTransfer(r.type)).reduce((s,r)=>s+r.qty,0);
+  return init+inQ-siteQ;
+}
+
+// ── 검증 함수 (첫 실사 기준 누적 계산) ──
+// 기준: 첫 실사 수량 - 첫 실사일 이후 누적 출고(당일 포함) + 반입 = 예상값
+// 예상값 == 실사값 → 일치(자동 해소 포함), 아니면 불일치
+
+// 첫 실사 기록 반환
+function getFirstRec(pid){
+  const recs=toArr(state.db.site).filter(r=>r.productId===pid&&isRealInv(r));
+  const deduped=Object.values(recs.reduce((m,r)=>{
+    if(!m[r.date]||r.ts>m[r.date].ts)m[r.date]=r;return m;
+  },{}));
+  return deduped.sort((a,b)=>a.date.localeCompare(b.date))[0]||null;
+}
+
+// 직전 실사 대비 계산 (오버레이 계산 내역 표시용)
+function verifySimple(pid,date,storage,drawer){
+  const prod=getProds().find(p=>p.id===pid);
+  if(!prod)return null;
+  const s=typeof prod.sample==='number'?prod.sample:0;
+  if(storage===''||storage===undefined||storage===null)return null;
+  const actual=s+(parseInt(storage)||0)+(parseInt(drawer)||0);
+  const prevRec=getPrevRec(pid,date);
+  if(!prevRec)return{ok:null,actual,expected:null,isFirst:true};
+  const prevTotal=s+(parseInt(getS(prevRec))||0)+(parseInt(getD(prevRec))||0);
+  const totalOut=Object.values(
+    toArr(state.db.site)
+      .filter(r=>r.productId===pid&&r.date>=prevRec.date&&r.date<date)
+      .reduce((m,r)=>{if(!m[r.date]||r.ts>m[r.date].ts)m[r.date]=r;return m;},{})
+  ).reduce((a,r)=>a+(parseInt(r.sales)||0)+toArr(r.outgoing||[]).reduce((x,o)=>x+(parseInt(o.qty)||0),0),0);
+  const transfer=toArr(state.db.wh)
+    .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date>prevRec.date&&r.date<=date)
+    .reduce((a,r)=>a+(parseInt(r.qty)||0),0);
+  const expected=prevTotal-totalOut+transfer;
+  return{ok:actual===expected,actual,expected,transfer,prevDate:prevRec.date,prevTotal,prevSales:totalOut};
+}
+
+function verify(pid,date,storage,drawer){
+  const prod=getProds().find(p=>p.id===pid);
+  if(!prod)return null;
+  const s=typeof prod.sample==='number'?prod.sample:0;
+  if(storage===''||storage===undefined||storage===null)return null;
+  const actual=s+(parseInt(storage)||0)+(parseInt(drawer)||0);
+
+  // 첫 실사 기준점
+  const firstRec=getFirstRec(pid);
+  if(!firstRec)return{ok:null,actual,expected:null,isFirst:true};
+  // 현재 날짜가 첫 실사일이면 isFirst
+  if(date===firstRec.date)return{ok:null,actual,expected:null,isFirst:true};
+
+  const firstTotal=s+(parseInt(getS(firstRec))||0)+(parseInt(getD(firstRec))||0);
+
+  // 첫 실사일 이후 ~ 현재 실사일 당일 포함 출고 합산
+  const totalOut=Object.values(
+    toArr(state.db.site)
+      .filter(r=>r.productId===pid&&r.date>=firstRec.date&&r.date<=date)
+      .reduce((m,r)=>{if(!m[r.date]||r.ts>m[r.date].ts)m[r.date]=r;return m;},{})
+  ).reduce((a,r)=>a+(parseInt(r.sales)||0)+toArr(r.outgoing||[]).reduce((x,o)=>x+(parseInt(o.qty)||0),0),0);
+
+  // 첫 실사일 이후 ~ 현재 실사일 반입 합산
+  const transfer=toArr(state.db.wh)
+    .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date>firstRec.date&&r.date<=date)
+    .reduce((a,r)=>a+(parseInt(r.qty)||0),0);
+
+  const expectedFromBase=firstTotal-totalOut+transfer;
+  const ok=actual===expectedFromBase;
+
+  // 오버레이 표시용 직전 대비 계산
+  const directV=verifySimple(pid,date,storage,drawer);
+  const prevRec=getPrevRec(pid,date);
+
+  return{
+    ok,actual,
+    expected:directV?directV.expected:expectedFromBase,
+    expectedFromBase,
+    firstDate:firstRec.date,
+    firstTotal,                                          // 첫 실사 합계 (calcBox 표시용)
+    transfer,
+    prevDate:prevRec?prevRec.date:null,
+    prevTotal:directV?directV.prevTotal:firstTotal,
+    prevSales:directV?directV.prevSales:totalOut
+  };
+}
+
+// 누적 최종검증: 기준재고 + 누적반입 - 누적출고 = 이론재고, 이론재고 vs 최신실사합계 비교
+// 반환: {ok, actual, theory, diff, totalIn, totalOut, notes}
+// notes: 불일치가 있는 날짜의 verifyNote 목록 (메모 모아보기용)
+function getCumulativeVerify(pid){
+  const prod=getProds().find(p=>p.id===pid);
+  if(!prod)return null;
+  const s=typeof prod.sample==='number'?prod.sample:0;
+  const latestRec=getLatestRec(pid,toDay());
+  if(!latestRec)return null;
+
+  // 실사 합계 (최신)
+  const actual=s+(parseInt(getS(latestRec))||0)+(parseInt(getD(latestRec))||0);
+
+  // 기준재고 (siteInit)
+  const init=state.db.siteInit[pid]||{};
+  const initStock=s+(parseInt(init.storage)||0)+(parseInt(init.drawer)||0);
+
+  // 누적 반입 — 최신 실사일까지만 (실사 이후 반입은 아직 실사 전이므로 제외)
+  const totalIn=toArr(state.db.wh)
+    .filter(r=>r.productId===pid&&isFieldTransfer(r.type)&&r.date<=latestRec.date)
+    .reduce((acc,r)=>acc+(parseInt(r.qty)||0),0);
+
+  // 누적 출고 — 최신 실사일까지의 실사 기록만, 날짜별 최신 1개만
+  const siteRecs=toArr(state.db.site).filter(r=>r.productId===pid&&r.date<=latestRec.date);
+  const dedupedRecs=Object.values(
+    siteRecs.reduce((map,r)=>{
+      if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;
+      return map;
+    },{})
+  );
+  const totalOut=dedupedRecs.reduce((acc,r)=>{
+    const sales=parseInt(r.sales)||0;
+    const og=toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
+    return acc+sales+og;
+  },0);
+
+  // 이론재고 = (기준재고 storage+drawer) + 누적반입 - 누적출고
+  // ※ 샘플은 actual/theory 양쪽에 동일하게 포함되어 diff 계산 시 상쇄됨
+  const theory=initStock+totalIn-totalOut;
+  const diff=actual-theory;
+
+  // 불일치 비고 누적 수집: 최신 실사일 이하 레코드 중 verifyNote가 있는 것만, 날짜별 최신 1개
+  const notes=Object.values(
+    toArr(state.db.site)
+      .filter(r=>r.productId===pid&&r.verifyNote&&r.date<=latestRec.date)
+      .reduce((map,r)=>{
+        if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;
+        return map;
+      },{})
+  ).sort((a,b)=>b.date.localeCompare(a.date))
+   .map(r=>({date:r.date,note:r.verifyNote}));
+
+  return{ok:diff===0,actual,theory,diff,totalIn,totalOut,initStock,notes};
+}
+
+// ── CSV ─────────────────────────────────────────────────────
+function toCSV(rows,hdrs){
+  const e=v=>{const s=String(v??'');return s.includes(',')||s.includes('"')?`"${s.replace(/"/g,'""')}"`  :s;};
+  return'\uFEFF'+[hdrs.map(e).join(','),...rows.map(r=>hdrs.map(h=>e(r[h]??'')).join(','))].join('\r\n');
+}
+function dlCSV(csv,name){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=name;a.click();}
+
+function exportSite(){
+  // 중복 레코드 제거 후 정렬
+  const raw=toArr(state.db.site).sort((a,b)=>b.ts-a.ts);
+  const seen={};
+  const site=raw.filter(r=>{const k=r.productId+'_'+r.date;if(seen[k])return false;seen[k]=true;return true;})
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.cat.localeCompare(b.cat));
+  if(site.length===0){showToast('내보낼 데이터가 없어요');return;}
+  const rows=site.map(r=>{
+    const prod=getProds().find(p=>p.id===r.productId);
+    const total=getTotal(getS(r),getD(r),prod);
+    const v=verify(r.productId,r.date,getS(r),getD(r));
+    return{
+      날짜:r.date,담당자:r.staff||'',카테고리:r.cat,제품명:r.productName,
+      샘플:r.sample||0,
+      실사보관함:getS(r)??'',실사인포서랍:getD(r)??'',
+      실사합계:total??'',판매수량:r.sales||0,
+      증정수량:toArr(r.outgoing||[]).filter(o=>o.type==='증정').reduce((s,o)=>s+(parseInt(o.qty)||0),0)||'',
+      폐기수량:toArr(r.outgoing||[]).filter(o=>o.type==='폐기').reduce((s,o)=>s+(parseInt(o.qty)||0),0)||'',
+      기타수량:toArr(r.outgoing||[]).filter(o=>o.type==='기타').reduce((s,o)=>s+(parseInt(o.qty)||0),0)||'',
+      총출고:((r.sales||0)+toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0))||'',
+      검증:v?(v.isFirst?'첫기록':v.ok?'일치':`불일치(${(v.actual-(v.expectedFromBase??v.expected))>0?'+':''}${v.actual-(v.expectedFromBase??v.expected)})`):'-',
+      불일치메모:r.verifyNote||'',
+      비고:r.note||''
+    };
+  });
+
+  // 날짜별 판매 비고 수집
+  const dayNotes=state.db.dayNotes||{};
+  const allDayNotes={...dayNotes};
+  toArr(state.db.site).forEach(r=>{if(r.dayNote&&r.dayNote.trim())allDayNotes[r.date]=r.dayNote;});
+  const dayNoteRows=Object.entries(allDayNotes)
+    .filter(([,note])=>note&&note.trim())
+    .sort(([a],[b])=>a.localeCompare(b))
+    .map(([date,note])=>({날짜:date,담당자:'',카테고리:'',제품명:'[판매비고]',샘플:'',
+      실사보관함:'',실사인포서랍:'',실사합계:'',판매수량:'',증정수량:'',폐기수량:'',기타수량:'',
+      총출고:'',검증:'',불일치메모:'',비고:note}));
+
+  // 증정/기타 출고 별도 테이블
+  const giftRows=[];
+  site.forEach(r=>{
+    toArr(r.outgoing||[]).forEach(o=>{
+      if((parseInt(o.qty)||0)>0){
+        giftRows.push({날짜:r.date,카테고리:r.cat,제품명:r.productName,유형:o.type,수량:parseInt(o.qty)||0,비고메모:o.note||''});
+      }
+    });
+  });
+
+  // 모든 섹션을 하나의 CSV로
+  const mainHdrs=['날짜','담당자','카테고리','제품명','샘플','실사보관함','실사인포서랍','실사합계','판매수량','증정수량','폐기수량','기타수량','총출고','검증','불일치메모','비고'];
+  const emptyMain={};mainHdrs.forEach(h=>{emptyMain[h]='';});
+  const sep1={...emptyMain,'날짜':'───판매비고───'};
+  const sep2={...emptyMain,'날짜':'───증정/기타출고내역───'};
+
+  const allHdrs=giftRows.length>0?[...mainHdrs,'유형','수량','비고메모']:mainHdrs;
+  const allEmptyMain={};allHdrs.forEach(h=>{allEmptyMain[h]='';});
+
+  let allRows=[...rows];
+  if(dayNoteRows.length>0){
+    allRows=[...allRows,{...allEmptyMain,...sep1},...dayNoteRows.map(r=>({...allEmptyMain,...r}))];
+  }
+  if(giftRows.length>0){
+    const giftAsMain=giftRows.map(r=>{
+      const row={...allEmptyMain};
+      row['날짜']=r['날짜'];row['카테고리']=r['카테고리'];row['제품명']=r['제품명'];
+      row['유형']=r['유형'];row['수량']=r['수량'];row['비고메모']=r['비고메모'];
+      return row;
+    });
+    allRows=[...allRows,{...allEmptyMain,...sep2},...giftAsMain];
+  }
+  dlCSV(toCSV(allRows,allHdrs),`현장재고_${toDay()}.csv`);
+  showToast(`📥 현장재고 ${rows.length}건${dayNoteRows.length>0?' + 판매비고'+dayNoteRows.length+'건':''}${giftRows.length>0?' + 증정'+giftRows.length+'건':''} 다운로드`);
+}
+
+function exportWh(){
+  const wh=toArr(state.db.wh).sort((a,b)=>a.date.localeCompare(b.date));
+  if(wh.length===0){showToast('내보낼 데이터가 없어요');return;}
+  const rows=wh.map(r=>({날짜:r.date,카테고리:r.cat,제품명:r.productName,유형:isFieldTransfer(r.type)?'창고→현장':r.type==='입고'?'창고반입':r.type,수량:r.qty,담당자:r.staff||'',비고:r.note||''}));
+  dlCSV(toCSV(rows,['날짜','카테고리','제품명','유형','수량','담당자','비고']),`창고입출고_${toDay()}.csv`);
+  showToast(`📥 창고입출고 ${rows.length}건 다운로드`);
+}
+
+// 종합 내보내기: XLSX 서식 버전
+function exportAll(){
+  const allProds=getProds();
+  const wh=toArr(state.db.wh).sort((a,b)=>a.date.localeCompare(b.date));
+
+  // ── 데이터 수집 ──────────────────────────────────────────────
+
+  // 섹션1: 현재 창고재고
+  const whStockData=allProds.map(prod=>{
+    const mv=toArr(state.db.wh).filter(r=>r.productId===prod.id);
+    const init=parseInt(state.db.whInit[prod.id])||0;
+    const inQ=mv.filter(r=>r.type==='창고반입'||r.type==='입고').reduce((s,r)=>s+r.qty,0);
+    const siteQ=mv.filter(r=>isFieldTransfer(r.type)).reduce((s,r)=>s+r.qty,0);
+    return[prod.cat,prod.name,prod.sample,init,inQ,siteQ,init+inQ-siteQ];
+  });
+
+  // 섹션2: 현재 현장 실재고
+  const siteStockData=allProds.map(prod=>{
+    const st=getCurrentStock(prod.id);
+    return[prod.cat,prod.name,prod.sample,
+      st?st.storage:'',st?st.drawer:'',
+      st&&st.transfer>0?st.transfer:'',
+      st?st.total:'',
+      st&&st.date?st.date:'기준재고'];
+  });
+
+  // 섹션3: 날짜별 모든 비고 (판매비고 + 증정/폐기 비고, 날짜+시간 포함)
+  const allExportNoteItems=[];
+  // 판매비고
+  const allDayNotes={...(state.db.dayNotes||{})};
+  toArr(state.db.site).forEach(r=>{if(r.dayNote&&r.dayNote.trim())allDayNotes[r.date]=r.dayNote;});
+  Object.entries(allDayNotes)
+    .filter(([,n])=>n&&n.trim())
+    .forEach(([date,note])=>{
+      const rec=toArr(state.db.site).filter(r=>r.date===date&&r.dayNote).sort((a,b)=>b.ts-a.ts)[0];
+      allExportNoteItems.push({date,type:'판매비고',productName:'',note,ts:rec?.ts||null});
+    });
+  // 증정/폐기 비고
+  const seenExportOgKeys=new Set();
+  toArr(state.db.site).forEach(r=>{
+    toArr(r.outgoing||[]).forEach(o=>{
+      if(o.note&&o.note.trim()){
+        const k=r.date+'_'+r.productId+'_'+o.type;
+        if(!seenExportOgKeys.has(k)){
+          seenExportOgKeys.add(k);
+          allExportNoteItems.push({date:r.date,type:o.type+' 비고',productName:r.productName,note:o.note,ts:r.ts||null});
+        }
+      }
+    });
+  });
+  // 불일치 비고
+  const seenExportVerifyKeys=new Set();
+  toArr(state.db.site)
+    .filter(r=>r.verifyNote&&r.verifyNote.trim())
+    .forEach(r=>{
+      const k=r.date+'_'+r.productId;
+      if(!seenExportVerifyKeys.has(k)){
+        seenExportVerifyKeys.add(k);
+        allExportNoteItems.push({date:r.date,type:'불일치 비고',productName:r.productName,note:r.verifyNote,ts:r.ts||null});
+      }
+    });
+  allExportNoteItems.sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0));
+  // 월별 그룹화
+  const exportNotesByMonth={};
+  allExportNoteItems.forEach(item=>{
+    const mo=item.date.slice(0,7);
+    if(!exportNotesByMonth[mo])exportNotesByMonth[mo]=[];
+    exportNotesByMonth[mo].push(item);
+  });
+
+  // 섹션4: 창고 입출고기록
+  const whLogData=wh.map(r=>[
+    r.date,r.cat,r.productName,
+    isFieldTransfer(r.type)?'창고→현장':r.type==='입고'?'창고반입':r.type,
+    r.qty,r.staff||'',r.note||''
+  ]);
+
+  // 섹션5: 현장 실사기록 (선택된 월 필터 또는 전체)
+  const siteRecMm=String(state.siteRecMonth).padStart(2,'0');
+  const siteRecFrom=`${state.siteRecYear}-${siteRecMm}-01`;
+  const siteRecLastDay=new Date(state.siteRecYear,state.siteRecMonth,0).getDate();
+  const siteRecTo=`${state.siteRecYear}-${siteRecMm}-${String(siteRecLastDay).padStart(2,'0')}`;
+  const rawSite=toArr(state.db.site).sort((a,b)=>b.ts-a.ts);
+  const siteSeen={};
+  const site=rawSite.filter(r=>{const k=r.productId+'_'+r.date;if(siteSeen[k])return false;siteSeen[k]=true;return true;})
+    .filter(r=>state._siteRecAll||(r.date>=siteRecFrom&&r.date<=siteRecTo))
+    .sort((a,b)=>a.date.localeCompare(b.date)||a.cat.localeCompare(b.cat));
+  const siteData=site.map(r=>{
+    const prod=allProds.find(p=>p.id===r.productId);
+    const total=getTotal(getS(r),getD(r),prod);
+    const v=verify(r.productId,r.date,getS(r),getD(r));
+    const verStr=v?(v.isFirst?'첫기록':v.ok?'일치':`불일치(${(v.actual-(v.expectedFromBase??v.expected))>0?'+':''}${v.actual-(v.expectedFromBase??v.expected)})`):'-';
+    const giftQ=toArr(r.outgoing||[]).filter(o=>o.type==='증정').reduce((s,o)=>s+(parseInt(o.qty)||0),0);
+    const wasteQ=toArr(r.outgoing||[]).filter(o=>o.type==='폐기').reduce((s,o)=>s+(parseInt(o.qty)||0),0);
+    return[r.date,r.cat,r.productName,r.sample||0,
+      getS(r)??'',getD(r)??'',total??'',
+      r.sales||0,giftQ||'',wasteQ||'',
+      (r.sales||0)+toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0)||'',
+      verStr,r.verifyNote||'',r.note||''];
+  });
+  // 합계 계산 (샘플,보관함,인포서랍,합계,판매,증정,폐기,총출고 = 인덱스 3,4,5,6,7,8,9,10)
+  const siteTotalCols=[3,4,5,6,7,8,9,10];
+  const siteTotals=siteTotalCols.map(ci=>siteData.reduce((s,r)=>s+(parseInt(r[ci])||0),0));
+
+  // ── XLSX 생성 ────────────────────────────────────────────────
+  if(!window.XLSX){showToast('XLSX 라이브러리 로딩 중...다시 시도해주세요');return;}
+  const wb=XLSX.utils.book_new();
+  const ws_data=[];
+  const merges=[];
+  const styles={}; // row index → fill color hex
+
+  // 섹션 색상 (옅은 파스텔)
+  const COLOR={
+    whStock:  {bg:'D6EAF8',font:'1A5276',label:'현재 창고재고'},   // 연파랑
+    whLog:    {bg:'D5F5E3',font:'145A32',label:'창고 입출고기록'}, // 연초록
+    siteStock:{bg:'FCF3CF',font:'7D6608',label:'현재 현장 실재고'},// 연노랑
+    dayNote:  {bg:'FADBD8',font:'78281F',label:'판매 비고'},        // 연분홍
+    siteRec:  {bg:'E8DAEF',font:'4A235A',label:'현장 실사기록'},    // 연보라
+    grand:    {bg:'D5DBDB',font:'1B2631',label:'전체 재고 합계'},    // 연회색
+    header:   {bg:'2C3E50',font:'FFFFFF'},
+    sep:      {bg:'F2F3F4',font:'717D7E'},
+    odd:      'FFFFFF',
+    even:     null // 각 섹션별 연한 틴트
+  };
+
+  function addSectionTitle(label,color,colCount){
+    const ri=ws_data.length;
+    const row=[label,...Array(colCount-1).fill('')];
+    ws_data.push(row);
+    merges.push({s:{r:ri,c:0},e:{r:ri,c:colCount-1}});
+    styles[ri]={fill:color.bg,font:color.font,bold:true,sz:11,border:true,sectionTitle:true};
+  }
+
+  function addHeader(hdrs,color){
+    const ri=ws_data.length;
+    ws_data.push(hdrs);
+    styles[ri]={fill:COLOR.header.bg,font:COLOR.header.font,bold:true,sz:10,border:true,isHeader:true};
+  }
+
+  function addRows(rows,color,evenTint,dateColIdx){
+    const evenFill=typeof evenTint==='object'?evenTint?.bg:evenTint;
+    rows.forEach((row,i)=>{
+      const ri=ws_data.length;
+      ws_data.push(row);
+      styles[ri]={fill:i%2===0?color.bg:(evenFill||color.bg),font:'222222',sz:10,border:true,dateColIdx:dateColIdx??-1};
+    });
+  }
+
+  function addSep(){
+    const ri=ws_data.length;
+    ws_data.push(['']);
+    styles[ri]={fill:'F8F9FA',font:'AAAAAA',sz:9};
+  }
+
+  // 상품 헤더 (카테고리 · 상품명) — 가로 피벗용
+  const prodHdrs=allProds.map(p=>`[${p.cat}] ${p.name}`);
+  const MAX_COLS=Math.max(14,prodHdrs.length+1); // 상품 수+1 vs 기존 14 중 큰 값
+
+  // ── 섹션0: 전체 재고 합계 (현장재고 + 창고재고) — 맨 위에 표시 ──
+  const grandSiteTotal=allProds.reduce((s,p)=>{const st=getCurrentStock(p.id);return s+(st?st.total:0);},0);
+  const grandWhTotal=allProds.reduce((s,p)=>s+getCurrentWhStock(p.id),0);
+  const grandTotal=grandSiteTotal+grandWhTotal;
+
+  addSectionTitle('🧮 전체 재고 합계 (현장+창고, '+toDay()+')',COLOR.grand,4);
+  addHeader(['구분','현장재고','창고재고','전체합계'],COLOR.grand);
+  {
+    const ri=ws_data.length;
+    ws_data.push(['전체 합계',grandSiteTotal,grandWhTotal,grandTotal]);
+    styles[ri]={fill:'AEB6BF',font:'1B2631',bold:true,sz:12,border:true};
+  }
+  CATS.forEach((c,i)=>{
+    const catProds=allProds.filter(p=>p.cat===c);
+    const cSite=catProds.reduce((s,p)=>{const st=getCurrentStock(p.id);return s+(st?st.total:0);},0);
+    const cWh=catProds.reduce((s,p)=>s+getCurrentWhStock(p.id),0);
+    const ri=ws_data.length;
+    ws_data.push([c+' 소계',cSite,cWh,cSite+cWh]);
+    styles[ri]={fill:i%2===0?'EAEDED':'D5DBDB',font:'1B2631',sz:10,border:true};
+  });
+  addSep();
+
+  // ── 섹션0-1: 전체 재고 합계 - 상품별 상세 (가로 피벗) ──
+  addSectionTitle('🧮 전체 재고 합계 - 상품별 상세',COLOR.grand,MAX_COLS);
+  {
+    const ri=ws_data.length;
+    ws_data.push(['',...prodHdrs,...Array(Math.max(0,MAX_COLS-prodHdrs.length-1)).fill('')]);
+    styles[ri]={fill:COLOR.grand.bg,font:COLOR.grand.font,bold:true,sz:10,border:true};
+  }
+  const grandPivotRows=[
+    ['현장재고', allProds.map(p=>{const st=getCurrentStock(p.id);return st?st.total:0;})],
+    ['창고재고', allProds.map(p=>getCurrentWhStock(p.id))],
+    ['전체합계', allProds.map(p=>{const st=getCurrentStock(p.id);return(st?st.total:0)+getCurrentWhStock(p.id);})],
+  ];
+  grandPivotRows.forEach(([label,vals],i)=>{
+    const ri=ws_data.length;
+    ws_data.push([label,...vals,...Array(Math.max(0,MAX_COLS-vals.length-1)).fill('')]);
+    styles[ri]={fill:i===2?'AEB6BF':(i%2===0?'EAEDED':'D5DBDB'),font:'1B2631',bold:i===2,sz:10,border:true};
+  });
+  addSep();
+
+  // ── 섹션1: 현재 창고재고 (가로 피벗) ──
+  addSectionTitle('📦 현재 창고재고 현황 ('+toDay()+')',COLOR.whStock,MAX_COLS);
+  // 헤더행: 빈칸 + 상품명들
+  {
+    const ri=ws_data.length;
+    ws_data.push(['',...prodHdrs,...Array(Math.max(0,MAX_COLS-prodHdrs.length-1)).fill('')]);
+    styles[ri]={fill:COLOR.whStock,font:'1A5276',bold:true,sz:10,border:true};
+  }
+  // 항목 행
+  const whPivotRows=[
+    ['기준재고',  allProds.map(p=>{const mv=toArr(state.db.wh).filter(r=>r.productId===p.id);return parseInt(state.db.whInit[p.id])||0;})],
+    ['창고반입',  allProds.map(p=>toArr(state.db.wh).filter(r=>r.productId===p.id&&(r.type==='창고반입'||r.type==='입고')).reduce((s,r)=>s+r.qty,0))],
+    ['창고→현장', allProds.map(p=>toArr(state.db.wh).filter(r=>r.productId===p.id&&isFieldTransfer(r.type)).reduce((s,r)=>s+r.qty,0))],
+    ['창고현재고', allProds.map(p=>{const mv=toArr(state.db.wh).filter(r=>r.productId===p.id);const init=parseInt(state.db.whInit[p.id])||0;const inQ=mv.filter(r=>r.type==='창고반입'||r.type==='입고').reduce((s,r)=>s+r.qty,0);const siteQ=mv.filter(r=>isFieldTransfer(r.type)).reduce((s,r)=>s+r.qty,0);return init+inQ-siteQ;})],
+  ];
+  whPivotRows.forEach(([label,vals],i)=>{
+    const ri=ws_data.length;
+    ws_data.push([label,...vals,...Array(Math.max(0,MAX_COLS-vals.length-1)).fill('')]);
+    styles[ri]={fill:i%2===0?'EBF5FB':'D6EAF8',font:'1A5276',sz:10,border:true};
+  });
+  addSep();
+
+  // ── 섹션2: 현재 현장 실재고 (가로 피벗) ──
+  addSectionTitle('🏪 현재 현장 실재고 현황 ('+toDay()+')',COLOR.siteStock,MAX_COLS);
+  {
+    const ri=ws_data.length;
+    ws_data.push(['',...prodHdrs,...Array(Math.max(0,MAX_COLS-prodHdrs.length-1)).fill('')]);
+    styles[ri]={fill:COLOR.siteStock,font:'7D6608',bold:true,sz:10,border:true};
+  }
+  const sitePivotRows=[
+    ['실사보관함', allProds.map(p=>{const st=getCurrentStock(p.id);return st?st.storage:'';})],
+    ['실사인포서랍',allProds.map(p=>{const st=getCurrentStock(p.id);return st?st.drawer:'';})],
+    ['당일반입',   allProds.map(p=>{const st=getCurrentStock(p.id);return st&&st.transfer>0?st.transfer:'';})],
+    ['실사합계',   allProds.map(p=>{const st=getCurrentStock(p.id);return st?st.total:'';})],
+    ['최근실사일', allProds.map(p=>{const st=getCurrentStock(p.id);return st&&st.date?st.date:'기준재고';})],
+  ];
+  sitePivotRows.forEach(([label,vals],i)=>{
+    const ri=ws_data.length;
+    ws_data.push([label,...vals,...Array(Math.max(0,MAX_COLS-vals.length-1)).fill('')]);
+    styles[ri]={fill:i%2===0?'FFFDE7':'FCF3CF',font:'7D6608',sz:10,border:true};
+  });
+  addSep();
+
+  // ── 섹션3: 날짜별 모든 비고 (판매/증정/폐기, 날짜+시간) ──
+  addSectionTitle('📝 날짜별 비고 (판매비고·증정비고·폐기비고 전체)',COLOR.dayNote,MAX_COLS);
+  addHeader(['날짜','시간','유형','제품명','비고 내용','','','','','','','','',''],COLOR.dayNote);
+  if(allExportNoteItems.length>0){
+    const noteMonths=Object.keys(exportNotesByMonth).sort();
+    noteMonths.forEach(mo=>{
+      const[my,mmn]=mo.split('-');
+      const moLabel=`── ${my}년 ${parseInt(mmn)}월 (${exportNotesByMonth[mo].length}건) ──`;
+      const riMo=ws_data.length;
+      ws_data.push([moLabel,...Array(MAX_COLS-1).fill('')]);
+      styles[riMo]={fill:'FFF3CD',font:'7D6608',bold:true,sz:9,border:true};
+      exportNotesByMonth[mo].forEach((item,i)=>{
+        const tStr=item.ts?new Date(item.ts).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}):'';
+        const riN=ws_data.length;
+        ws_data.push([item.date,tStr,item.type,item.productName||'',item.note,...Array(MAX_COLS-5).fill('')]);
+        styles[riN]={fill:i%2===0?'FDEDEC':'FADBD8',font:'222222',sz:10,border:true};
+      });
+    });
+  } else {
+    ws_data.push(['데이터 없음',...Array(MAX_COLS-1).fill('')]);
+  }
+  addSep();
+
+  // ── 섹션4: 창고 입출고기록 ──
+  addSectionTitle('🏭 창고 입출고기록',COLOR.whLog,7);
+  addHeader(['날짜','카테고리','제품명','유형','수량','담당자','비고'],COLOR.whLog);
+  if(whLogData.length>0)addRows(whLogData,{bg:'EAFAF1'},{bg:'D5F5E3'},0);
+  else ws_data.push(['데이터 없음']);
+  addSep();
+
+  // ── 섹션4-5: 월별 상품별 판매 수량 (가로 피벗) ──
+  const salesMonths=[...new Set(toArr(state.db.site).map(r=>r.date.slice(0,7)))].sort();
+  addSectionTitle('🛒 월별 상품별 판매 수량',COLOR.dayNote,MAX_COLS);
+  salesMonths.forEach(mo=>{
+    const[sy,sm]=mo.split('-');
+    const moLabel=`${sy}년 ${parseInt(sm)}월`;
+    const moFrom=`${mo}-01`;
+    const moLastDay=new Date(parseInt(sy),parseInt(sm),0).getDate();
+    const moTo=`${mo}-${String(moLastDay).padStart(2,'0')}`;
+    const moRecs=Object.values(
+      toArr(state.db.site)
+        .filter(r=>r.date>=moFrom&&r.date<=moTo)
+        .reduce((map,r)=>{const k=r.productId+'_'+r.date;if(!map[k]||r.ts>map[k].ts)map[k]=r;return map;},{})
+    );
+    // 상품별 집계
+    const prodVals=allProds.map(prod=>{
+      const recs=moRecs.filter(r=>r.productId===prod.id);
+      const s=recs.reduce((a,r)=>a+(parseInt(r.sales)||0),0);
+      const g=recs.reduce((a,r)=>a+toArr(r.outgoing||[]).filter(o=>o.type==='증정').reduce((x,o)=>x+(parseInt(o.qty)||0),0),0);
+      const w=recs.reduce((a,r)=>a+toArr(r.outgoing||[]).filter(o=>o.type==='폐기').reduce((x,o)=>x+(parseInt(o.qty)||0),0),0);
+      return{s,g,w};
+    });
+    const hasAny=prodVals.some(v=>v.s||v.g||v.w);
+    if(!hasAny)return;
+    // 월 헤더행: 월명 + 상품명들
+    const riHdr=ws_data.length;
+    ws_data.push([moLabel,...prodHdrs,...Array(Math.max(0,MAX_COLS-prodHdrs.length-1)).fill('')]);
+    styles[riHdr]={fill:'F9A825',font:'FFFFFF',bold:true,sz:10,border:true};
+    // 항목 행: 판매/증정/폐기/총출고
+    const moRows=[
+      ['판매', prodVals.map(v=>v.s||0)],
+      ['증정', prodVals.map(v=>v.g||0)],
+      ['폐기', prodVals.map(v=>v.w||0)],
+      ['총출고',prodVals.map(v=>v.s+v.g+v.w)],
+    ];
+    moRows.forEach(([label,vals],i)=>{
+      const ri=ws_data.length;
+      ws_data.push([label,...vals,...Array(Math.max(0,MAX_COLS-vals.length-1)).fill('')]);
+      styles[ri]={fill:i%2===0?'FFFDE7':'FFF9C4',font:'333333',sz:10,border:true};
+    });
+    // 합계 행
+    const riSum=ws_data.length;
+    const totalS=prodVals.reduce((a,v)=>a+v.s,0);
+    const totalG=prodVals.reduce((a,v)=>a+v.g,0);
+    const totalW=prodVals.reduce((a,v)=>a+v.w,0);
+    ws_data.push(['합계',
+      ...prodVals.map(v=>v.s+v.g+v.w),
+      ...Array(Math.max(0,MAX_COLS-prodHdrs.length-1)).fill('')
+    ]);
+    styles[riSum]={fill:'E67E22',font:'FFFFFF',bold:true,sz:10,border:true};
+    ws_data.push(['',...Array(MAX_COLS-1).fill('')]); // 월 사이 빈 행
+  });
+  if(salesMonths.length===0)ws_data.push(['데이터 없음',...Array(MAX_COLS-1).fill('')]);
+  addSep();
+
+  // ── 섹션5: 현장 실사기록 (선택된 월) ──
+  const siteMonthLabel=state._siteRecAll?'전체':`${state.siteRecYear}년 ${state.siteRecMonth}월`;
+  addSectionTitle(`📋 현장 실사기록 (${siteMonthLabel})`,COLOR.siteRec,14);
+  // 상단 합계 행 (헤더 위)
+  if(siteData.length>0){
+    const riSum=ws_data.length;
+    ws_data.push([
+      `합계 (${siteData.length}건)`,'','',
+      siteTotals[0],siteTotals[1],siteTotals[2],siteTotals[3],
+      siteTotals[4],siteTotals[5],siteTotals[6],siteTotals[7],
+      '','',''
+    ]);
+    styles[riSum]={fill:'C39BD3',font:'4A235A',bold:true,sz:10,border:true};
+  }
+  addHeader(['날짜','카테고리','제품명','샘플','실사보관함','실사인포서랍','실사합계','판매','증정','폐기','총출고','검증','불일치메모','비고'],COLOR.siteRec);
+  if(siteData.length>0)addRows(siteData,{bg:'F5EEF8'},{bg:'E8DAEF'},0);
+  else ws_data.push(['데이터 없음']);
+
+  // ── 워크시트 생성 ────────────────────────────────────────────
+  const ws=XLSX.utils.aoa_to_sheet(ws_data);
+  ws['!merges']=merges;
+
+  // 열 너비
+  ws['!cols']=[
+    {wch:12},{wch:22},{wch:10},{wch:8},{wch:8},{wch:8},{wch:8},{wch:10},
+    {wch:8},{wch:8},{wch:8},{wch:12},{wch:20},{wch:20}
+  ];
+
+  // 스타일 적용 (xlsx.full.min.js는 기본 스타일 미지원 → xlsxStyle 없이 최대한 활용)
+  // SheetJS 무료판은 셀 스타일 미지원이므로, 조건부로 xlsx-style CDN 감지
+  // → 대신 HTML Table 방식으로 색상 포함 xls 생성
+  // 실제로는 Blob + data URI로 HTML table을 xls로 내보냄
+
+  // HTML table 방식으로 서식 포함 내보내기
+  let html='<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">';
+  html+='<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>종합재고</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>';
+  html+='<table border="1" style="border-collapse:collapse;font-family:\'Malgun Gothic\',\'맑은 고딕\',Arial,sans-serif;font-size:10pt;">';
+
+  function hexToStyle(bg,fg,bold,sz,isSepRow){
+    let s=`background-color:#${bg};color:#${fg||'222222'};`;
+    if(bold)s+='font-weight:bold;';
+    if(sz)s+=`font-size:${sz}pt;`;
+    if(isSepRow)s+='height:6px;';
+    return s;
+  }
+
+  // 날짜 병합 rowspan 사전 계산
+  // dateColIdx >= 0인 행들끼리 연속 같은 날짜면 rowspan 처리
+  const rowspan={}; // ri → rowspan count (첫 행만), -1이면 skip(병합된 행)
+  // 섹션 경계를 넘지 않도록: sectionTitle 또는 isHeader 또는 sep이면 경계
+  let di=-1,dStart=-1,dVal='',dCount=0;
+  function flushDateGroup(){
+    if(dStart>=0&&dCount>1)rowspan[dStart]=dCount;
+    dStart=-1;dVal='';dCount=0;
+  }
+  ws_data.forEach((row,ri)=>{
+    const st=styles[ri]||{};
+    const isBoundary=st.sectionTitle||st.isHeader||(!st.fill&&row.length===1&&row[0]==='');
+    if(isBoundary){flushDateGroup();return;}
+    const dcol=st.dateColIdx??-1;
+    if(dcol<0){flushDateGroup();return;}
+    const cellDate=row[dcol]??'';
+    if(cellDate===dVal&&dStart>=0){
+      // 연속 같은 날짜
+      dCount++;
+      rowspan[ri]=-1; // 이 행의 날짜 셀은 skip
+    } else {
+      flushDateGroup();
+      dStart=ri;dVal=cellDate;dCount=1;
+    }
+  });
+  flushDateGroup();
+
+  ws_data.forEach((row,ri)=>{
+    const st=styles[ri]||{};
+    const isSep=!st.fill&&row.length===1&&row[0]==='';
+    if(isSep){
+      html+=`<tr style="height:6px;"><td colspan="${MAX_COLS}" style="background:#F8F9FA;border:none;"></td></tr>`;
+      return;
+    }
+    const bg=st.fill||'FFFFFF';
+    const fg=st.font||'222222';
+    const bold=st.bold||false;
+    const sz=st.sz||10;
+    const isMerged=merges.some(m=>m.s.r===ri&&m.s.c===0);
+    const tag=st.isHeader?'th':'td';
+    const dcol=st.dateColIdx??-1;
+
+    html+='<tr>';
+    if(isMerged){
+      html+=`<${tag} colspan="${MAX_COLS}" style="${hexToStyle(bg,fg,bold,sz+1)};padding:7px 10px;border:1px solid #BFC9CA;">${row[0]}</${tag}>`;
+    } else {
+      row.forEach((cell,ci)=>{
+        // 날짜 병합 처리
+        if(ci===dcol){
+          if(rowspan[ri]===-1)return; // skip — 위 행에 병합됨
+          const rs=rowspan[ri]||1;
+          const val=cell===null||cell===undefined?'':cell;
+          const rsAttr=rs>1?` rowspan="${rs}"`:'';
+          const extraStyle=rs>1?'vertical-align:middle;text-align:center;font-weight:600;':'';
+          html+=`<${tag}${rsAttr} style="${hexToStyle(bg,fg,bold,sz)};${extraStyle}padding:4px 6px;border:1px solid #D5D8DC;white-space:nowrap;">${String(val).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</${tag}>`;
+          return;
+        }
+        const val=cell===null||cell===undefined?'':cell;
+        html+=`<${tag} style="${hexToStyle(bg,fg,bold,sz)};padding:4px 6px;border:1px solid #D5D8DC;white-space:nowrap;">${String(val).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</${tag}>`;
+      });
+    }
+    html+='</tr>';
+  });
+
+  html+='</table></body></html>';
+
+  const blob=new Blob(['\uFEFF'+html],{type:'application/vnd.ms-excel;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`뮤지엄샵_종합_${toDay()}.xls`;a.click();
+  URL.revokeObjectURL(url);
+
+  showToast(`📥 종합 엑셀 내보내기 완료 (${state.siteRecYear}년 ${state.siteRecMonth}월 실사기록 포함)`);
+}
+
+// ── STATE ────────────────────────────────────────────────────
+let state={
+  tab:0,stockTab:'site',db:loadDb(),toast:'',_tt:null,
+  // 현장재고
+  selDate:toDay(),
+  draft:{},
+  showInitSite:false,initSiteVals:{},
+  verifyMemo:{}, // {pid: '메모내용'} - 검증 불일치 메모
+  verifyMemoOpen:{}, // {pid: true/false} - 메모 입력창 열림 여부
+  wh:{date:toDay(),cat:'굿즈',pid:'',type:'창고반입',qty:'',note:''},
+  editWhId:null,
+  showInitWh:false,initWhVals:{},
+  // 품목관리
+  formProd:null,
+  // 현재 실재고 테이블 반입 필터
+  stockYear:new Date().getFullYear(),
+  stockMonth:new Date().getMonth()+1,
+  // 현장 실사기록 엑셀 내보내기 월 필터
+  siteRecYear:new Date().getFullYear(),
+  siteRecMonth:new Date().getMonth()+1,
+  _showExportPicker:false,
+  _siteRecAll:false,
+  _verifyOverlay:null, // {pid, productName} — 검증 오버레이
+};
+
+function set(p){Object.assign(state,p);render();}
+function showToast(m){if(state._tt)clearTimeout(state._tt);state.toast=m;state._tt=setTimeout(()=>{state.toast='';render();},2500);render();}
+function persist(d){state.db=d;saveDb(d);render();}
+
+// 최초 Firebase 데이터 로드
+state._loading = true;
+db_ref.once('value').then(snapshot => {
+  const data = snapshot.val();
+  if(data){
+    state.db = {site:[],wh:[],siteInit:{},whInit:{},products:[],
+      ...data,
+      site:toArr(data.site),
+      wh:toArr(data.wh),
+      products:toArr(data.products)
+    };
+    try{localStorage.setItem(KEY, JSON.stringify(state.db));}catch{}
+  }
+  state._loading = false;
+  state.draft = initDraft(state.selDate);
+  state._draftInit = true;
+  render();
+}).catch(()=>{
+  state._loading = false;
+  render();
+});
+
+// draft 초기화 (날짜 선택 시) — 기존 기록 있으면 로드, 없으면 이전 실사 기반 예상값 자동입력
+function initDraft(date){
+  const draft={};
+  getProds().forEach(prod=>{
+    const rec=getDateRec(prod.id,date);
+    if(rec){
+      // 기존 저장된 기록 → 실사값 + 판매값 + 증정/폐기 모두 로드 (deep copy)
+      // 도서는 인포서랍 항상 0
+      const drawerLoaded=prod.cat==='도서'?'0':String(getD(rec)??'');
+      draft[prod.id]={storage:String(getS(rec)??''),drawer:drawerLoaded,
+        sales:parseInt(rec.sales)||0,
+        outgoing:toArr(rec.outgoing||[]).map(o=>({...o})),
+        dirty:false,saved:true,salesSaved:true};
+      return;
+    }
+    draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false,saved:false,salesSaved:false};
+  });
+  return draft;
+}
+
+// 실사 저장 (보관함/인포서랍)
+function saveInventory(){
+  const date=state.selDate;
+  const staff='';
+  // 기존 날짜 기록 전체 수집 — 중복 레코드에서 sales/outgoing/verifyNote 병합 (데이터 손실 방지)
+  const prevRecs=toArr(state.db.site).filter(r=>r.date===date);
+  const mergedByPid={};
+  prevRecs.forEach(r=>{
+    const pid=r.productId;
+    if(!mergedByPid[pid])mergedByPid[pid]={sales:0,outgoing:[],verifyNote:''};
+    // sales는 더 큰 값 유지, outgoing은 항목이 있는 레코드 우선
+    if((parseInt(r.sales)||0)>mergedByPid[pid].sales)
+      mergedByPid[pid].sales=parseInt(r.sales)||0;
+    if(toArr(r.outgoing||[]).length>0)
+      mergedByPid[pid].outgoing=toArr(r.outgoing||[]).map(o=>({...o}));
+    if(r.verifyNote)
+      mergedByPid[pid].verifyNote=r.verifyNote;
+  });
+
+  let newSite=[...toArr(state.db.site).filter(r=>r.date!==date)];
+  let savedCount=0;
+  getProds().forEach(prod=>{
+    const d=state.draft[prod.id];
+    if(!d||((d.storage===''||d.storage===undefined)&&(d.drawer===''||d.drawer===undefined)))return;
+    const merged=mergedByPid[prod.id]||{sales:0,outgoing:[],verifyNote:''};
+    // 도서는 인포서랍 항상 0
+    const drawerSave=prod.cat==='도서'?'0':(d.drawer??'');
+    newSite.push({id:uid(),date,cat:prod.cat,productId:prod.id,productName:prod.name,
+      sample:prod.sample,storage:d.storage,drawer:drawerSave,
+      sales:merged.sales,outgoing:merged.outgoing,
+      staff,verifyNote:merged.verifyNote,note:'',ts:Date.now()});
+    savedCount++;
+  });
+  persist({...state.db,site:newSite});
+  state.draft=initDraft(date);
+  showToast(`✓ 실사 ${savedCount}개 저장됨`);
+}
+
+// 판매 저장 (기존 실사 기록에 판매수량만 업데이트)
+function saveSales(){
+  const date=state.selDate;
+  let updated=false;
+
+  // 중복 레코드 병합: 같은 날짜+품목의 모든 레코드를 하나로 합침
+  // 실사값은 ts 최신 레코드, sales/outgoing은 draft(현재 입력값) 사용
+  const otherRecs=toArr(state.db.site).filter(r=>r.date!==date);
+  // 해당 날짜 레코드는 pid별로 최신 1개만 남김 (나머지 중복 제거)
+  const dateRecs=toArr(state.db.site).filter(r=>r.date===date);
+  const dateDeduped=Object.values(
+    dateRecs.reduce((map,r)=>{
+      if(!map[r.productId]||r.ts>map[r.productId].ts)map[r.productId]=r;
+      return map;
+    },{})
+  );
+
+  const newSite=[...otherRecs,...dateDeduped.map(r=>{
+    const d=state.draft[r.productId];
+    if(!d)return r;
+    updated=true;
+    return{...r,sales:d.sales||0,outgoing:d.outgoing||[],dayNote:r.dayNote||'',ts:Date.now()};
+  })];
+
+  // 실사 기록 없는데 출고만 있는 경우 추가
+  getProds().forEach(prod=>{
+    const d=state.draft[prod.id];
+    const hasOut=d&&(d.sales>0||toArr(d.outgoing||[]).some(o=>(parseInt(o.qty)||0)>0));
+    if(!hasOut)return;
+    const exists=newSite.find(r=>r.date===date&&r.productId===prod.id);
+    if(!exists){
+      newSite.push({id:uid(),date,cat:prod.cat,productId:prod.id,productName:prod.name,
+        sample:prod.sample,storage:'',drawer:'',sales:d.sales||0,outgoing:d.outgoing||[],note:'',ts:Date.now()});
+      updated=true;
+    }
+  });
+  if(!updated){showToast('먼저 실사를 저장해주세요');return;}
+  persist({...state.db,site:newSite});
+  state.draft=initDraft(date);
+  showToast('✓ 출고 저장됨');
+}
+
+// ── DOM ──────────────────────────────────────────────────────
+function el(tag,attrs,...kids){
+  const e=document.createElement(tag);
+  if(attrs)Object.entries(attrs).forEach(([k,v])=>{
+    if(k==='class')e.className=v;
+    else if(k==='onclick')e.addEventListener('click',v);
+    else if(k.startsWith('on')&&typeof v==='function')e.addEventListener(k.slice(2).toLowerCase(),v);
+    else if(k==='style'&&typeof v==='object'){
+      const existing=e.getAttribute('style')||'';
+      const str=Object.entries(v).map(([p,val])=>{
+        const css=p.replace(/([A-Z])/g,m=>'-'+m.toLowerCase());
+        return `${css}:${val}`;
+      }).join(';');
+      e.setAttribute('style',existing?(existing+';'+str):str);
+    }
+    else e.setAttribute(k,v);
+  });
+  kids.flat(9).forEach(c=>{if(c!=null)e.append(typeof c==='string'?c:c);});
+  return e;
+}
+const fld=(l,i)=>el('div',null,el('label',{class:'label'},l),i);
+function nInp(val,onCh,w){const i=el('input',{type:'number',class:'t-inp',min:'0',value:val,placeholder:'0'});if(w)i.style.width=w;i.addEventListener('input',e=>onCh(e.target.value));return i;}
+function selEl(val,opts,onCh){const s=el('select',{class:'inp sel'});opts.forEach(([v,t])=>{const o=el('option',{value:v},t);if(v==val)o.selected=true;s.append(o);});s.addEventListener('change',e=>onCh(e.target.value));return s;}
+function pillsEl(items,active,onClick,sm){return el('div',{class:'pills'},...items.map(item=>{const b=el('button',{class:'pill'+(item===active?' on':'')+(sm?' pill-sm':'')},item);b.addEventListener('click',()=>onClick(item));return b;}));}
+
+function vBadgeMemo(v,pid,date){
+  if(!v||v.isFirst)return el('span',{class:'vna'},'첫기록');
+  if(v.ok)return el('span',{class:'vok'},'✅');
+  const diff=v.actual-(v.expectedFromBase!==undefined?v.expectedFromBase:v.expected);
+  const memoKey=date+'_'+pid;
+  const isOpen=!!state.verifyMemoOpen[memoKey];
+  // 저장된 메모 불러오기
+  const savedRec=getDateRec(pid,date);
+  const savedMemo=savedRec?.verifyNote||'';
+
+  const wrap=el('div',{style:{display:'flex',alignItems:'center',gap:'4px',flexWrap:'wrap'}});
+  const badge=el('span',{class:'ver'},`${diff>0?'+':''}${diff}`);
+  const qBtn=el('button',{style:{
+    background:'none',border:'1px solid var(--acc)',borderRadius:'50%',
+    width:'16px',height:'16px',fontSize:'10px',cursor:'pointer',
+    color:'var(--acc)',lineHeight:'1',padding:'0',flexShrink:'0',
+    display:'inline-flex',alignItems:'center',justifyContent:'center'
+  }},savedMemo?'📝':'?');
+  qBtn.addEventListener('click',e=>{
+    e.stopPropagation();
+    state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:!isOpen};
+    render();
+  });
+  wrap.append(badge,qBtn);
+
+  if(isOpen){
+    const memoInp=el('input',{type:'text',
+      style:{width:'100%',marginTop:'4px',border:'1px solid var(--bd)',borderRadius:'6px',
+        padding:'4px 7px',fontSize:'11px',outline:'none'},
+      placeholder:'불일치 이유 메모...',
+      value:state.verifyMemo[memoKey]!==undefined?state.verifyMemo[memoKey]:savedMemo
+    });
+    memoInp.addEventListener('input',e=>{
+      state.verifyMemo={...state.verifyMemo,[memoKey]:e.target.value};
+    });
+    const saveBtn=el('button',{style:{
+      marginTop:'3px',width:'100%',padding:'3px',fontSize:'10px',
+      background:'var(--p)',color:'#fff',border:'none',borderRadius:'5px',cursor:'pointer'
+    }},'저장');
+    saveBtn.addEventListener('click',()=>{
+      const note=state.verifyMemo[memoKey]||'';
+      // 해당 날짜 레코드의 verifyNote 업데이트
+      const newSite=toArr(state.db.site).map(r=>{
+        if(r.productId===pid&&r.date===date)return{...r,verifyNote:note,ts:Date.now()};
+        return r;
+      });
+      persist({...state.db,site:newSite});
+      state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:false};
+      state.verifyMemo={...state.verifyMemo,[memoKey]:undefined};
+      showToast('✓ 메모 저장됨');
+    });
+    wrap.append(el('div',{style:{width:'100%'}},memoInp,saveBtn));
+  } else if(savedMemo){
+    wrap.append(el('div',{style:{fontSize:'9px',color:'var(--acc)',marginTop:'2px',width:'100%'}},`메모: ${savedMemo}`));
+  }
+  return wrap;
+}
+
+// ── 불일치 메모 입력창 빌더 (공통, 모듈 레벨) ──────────────────
+function buildMemoInput(memoKey,savedMemo,pid,date){
+  const memoInp=el('input',{type:'text',
+    style:{width:'100%',marginTop:'2px',border:'1px solid var(--bd)',borderRadius:'5px',
+      padding:'3px 6px',fontSize:'10px',outline:'none'},
+    placeholder:'불일치 이유...',
+    value:state.verifyMemo[memoKey]!==undefined?state.verifyMemo[memoKey]:savedMemo
+  });
+  memoInp.addEventListener('input',e=>{
+    state.verifyMemo={...state.verifyMemo,[memoKey]:e.target.value};
+  });
+  const sb=el('button',{style:{
+    marginTop:'2px',width:'100%',padding:'2px',fontSize:'9px',
+    background:'var(--p)',color:'#fff',border:'none',borderRadius:'4px',cursor:'pointer'
+  }},'저장');
+  sb.addEventListener('click',()=>{
+    const note=state.verifyMemo[memoKey]||'';
+    const newSite=toArr(state.db.site).map(r=>{
+      if(r.productId===pid&&r.date===date)return{...r,verifyNote:note,ts:Date.now()};
+      return r;
+    });
+    persist({...state.db,site:newSite});
+    state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:false};
+    state.verifyMemo={...state.verifyMemo,[memoKey]:undefined};
+    showToast('✓ 메모 저장됨');
+  });
+  return el('div',{style:{paddingLeft:'2px'}},memoInp,sb);
+}
+
+// ── 현재 실재고 테이블 (위) ──────────────────────────────────
+function currentStockTable(){
+  const prods=getProds();
+
+  // 반입 필터: 선택된 년/월
+  const selYear=state.stockYear;
+  const selMonth=state.stockMonth;
+  const mm=String(selMonth).padStart(2,'0');
+  const lastDay=new Date(selYear,selMonth,0).getDate();
+  const filterFrom=`${selYear}-${mm}-01`;
+  const filterTo=`${selYear}-${mm}-${String(lastDay).padStart(2,'0')}`;
+
+  // 반입 필터 셀렉트 (카드 헤더용으로 반환)
+  const years=[...new Set(toArr(state.db.wh).map(r=>r.date.slice(0,4)))].sort().reverse();
+  if(!years.includes(String(selYear)))years.unshift(String(selYear));
+
+  const yearSel=el('select',{class:'inp sel',style:{padding:'3px 20px 3px 6px',fontSize:'11px',height:'26px',width:'70px'}});
+  years.forEach(y=>{const o=el('option',{value:y},y+'년');if(Number(y)===selYear)o.selected=true;yearSel.append(o);});
+  yearSel.addEventListener('change',e=>{state.stockYear=Number(e.target.value);render();});
+
+  const monthSel=el('select',{class:'inp sel',style:{padding:'3px 20px 3px 6px',fontSize:'11px',height:'26px',width:'58px'}});
+  for(let m=1;m<=12;m++){const o=el('option',{value:m},m+'월');if(m===selMonth)o.selected=true;monthSel.append(o);}
+  monthSel.addEventListener('change',e=>{state.stockMonth=Number(e.target.value);render();});
+
+  currentStockTable._filterEl=el('div',{style:{display:'flex',gap:'4px',alignItems:'center'}},yearSel,monthSel);
+
+  // 실사기록 엑셀 내보내기 월 선택 — 기록이 있는 월 목록을 pill로 표시
+  const siteRecMonths=[...new Set(
+    toArr(state.db.site).map(r=>r.date.slice(0,7))
+  )].sort((a,b)=>b.localeCompare(a)); // 최신순
+
+  const selectedKey=`${state.siteRecYear}-${String(state.siteRecMonth).padStart(2,'0')}`;
+
+  const monthPills=siteRecMonths.map(mo=>{
+    const[y,m]=mo.split('-');
+    const label=`${y.slice(2)}.${parseInt(m)}월`;
+    const isOn=mo===selectedKey;
+    const btn=el('button',{
+      class:'pill pill-sm'+(isOn?' on':''),
+      style:isOn?{background:'var(--p)',color:'#fff',fontWeight:'700'}:{}
+    },label);
+    btn.addEventListener('click',()=>{
+      state.siteRecYear=Number(y);
+      state.siteRecMonth=Number(m);
+      render();
+    });
+    return btn;
+  });
+
+  // 이전/다음 월 이동 버튼
+  const curIdx=siteRecMonths.indexOf(selectedKey);
+  const prevBtn=el('button',{style:{
+    background:'none',border:'1px solid var(--bd)',borderRadius:'6px',
+    padding:'2px 7px',fontSize:'11px',cursor:'pointer',color:'var(--pm)',flexShrink:'0'
+  }},'‹');
+  prevBtn.addEventListener('click',()=>{
+    const next=siteRecMonths[curIdx+1];
+    if(next){const[y,m]=next.split('-');state.siteRecYear=Number(y);state.siteRecMonth=Number(m);render();}
+  });
+  const nextBtn=el('button',{style:{
+    background:'none',border:'1px solid var(--bd)',borderRadius:'6px',
+    padding:'2px 7px',fontSize:'11px',cursor:'pointer',color:'var(--pm)',flexShrink:'0'
+  }},'›');
+  nextBtn.addEventListener('click',()=>{
+    const prev=siteRecMonths[curIdx-1];
+    if(prev){const[y,m]=prev.split('-');state.siteRecYear=Number(y);state.siteRecMonth=Number(m);render();}
+  });
+  if(curIdx<=0)nextBtn.disabled=true,nextBtn.style.opacity='0.3';
+  if(curIdx>=siteRecMonths.length-1)prevBtn.disabled=true,prevBtn.style.opacity='0.3';
+
+  const siteRecCount=toArr(state.db.site).filter(r=>r.date.startsWith(selectedKey)).length;
+  const siteRecLabel=`${state.siteRecYear}년 ${state.siteRecMonth}월 (${siteRecCount}건)`;
+
+  currentStockTable._siteRecFilterEl=siteRecMonths.length>0?el('div',{style:{
+    background:'var(--surf2)',borderRadius:'var(--r2)',padding:'7px 8px',marginTop:'6px',
+    border:'1px solid var(--bd)'
+  }},
+    el('div',{style:{display:'flex',alignItems:'center',gap:'6px',marginBottom:'5px'}},
+      el('span',{style:{fontSize:'10px',fontWeight:'600',color:'var(--t2)'}},'📋 실사기록 엑셀 범위'),
+      el('span',{style:{fontSize:'10px',color:'var(--acc)',fontWeight:'700'}},siteRecLabel),
+      el('div',{style:{marginLeft:'auto',display:'flex',gap:'3px'}},prevBtn,nextBtn)
+    ),
+    el('div',{style:{display:'flex',gap:'4px',flexWrap:'wrap'}},...monthPills)
+  ):null;
+
+  const filterTh=el('th',null,'반입');
+  const salesTh=el('th',{style:{color:'#FFE082',width:'52px'}},'판매');
+
+  const thead=el('thead',null,el('tr',null,
+    el('th',null,'제품명'),el('th',null,'샘플'),el('th',null,'보관함'),el('th',null,'인포서랍'),el('th',null,'합계'),el('th',null,'최근일'),filterTh,salesTh,el('th',{style:{width:'52px'}},'검증')
+  ));
+
+  const tbody=el('tbody',null,...prods.map(prod=>{
+    const bg=CAT_BG[prod.cat];
+    const st=getCurrentStock(prod.id);
+    const noData=!st||st.date===null;
+
+    // 최근일 셀
+    const recentDateCell=el('span',{style:{color:'var(--t3)',fontSize:'9px'}},
+      st&&st.date?fmtDate(st.date):'기준재고'
+    );
+
+    // 반입 셀: 선택된 년/월의 반입 합계
+    const monthQty=toArr(state.db.wh)
+      .filter(r=>r.productId===prod.id&&isFieldTransfer(r.type)&&r.date>=filterFrom&&r.date<=filterTo)
+      .reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+    const monthlyCell=monthQty>0
+      ?el('span',{style:{fontSize:'11px',fontWeight:'700',color:'var(--pm)'}},`+${monthQty}`)
+      :el('span',{style:{color:'var(--t3)',fontSize:'9px'}},'-');
+
+    // 판매 셀: 선택된 년/월의 판매+출고 합계 (날짜별 최신 1개만)
+    const monthRecs=toArr(state.db.site)
+      .filter(r=>r.productId===prod.id&&r.date>=filterFrom&&r.date<=filterTo);
+    const monthDeduped=Object.values(
+      monthRecs.reduce((map,r)=>{
+        if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;
+        return map;
+      },{})
+    );
+    const monthSales=monthDeduped.reduce((acc,r)=>{
+      const sales=parseInt(r.sales)||0;
+      const og=toArr(r.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
+      return acc+sales+og;
+    },0);
+
+    // 판매 셀: 선택된 년/월의 판매+출고 합계만 표시 (비고는 별도 패널로 이동)
+    const salesCell=monthSales>0
+      ?el('span',{style:{fontSize:'11px',fontWeight:'700',color:'var(--acc)'}},`-${monthSales}`)
+      :el('span',{style:{color:'var(--t3)',fontSize:'9px'}},'-');
+
+    // 검증 셀: 현재 상태 1줄 + 월 버튼
+    const verifyCell=(()=>{
+      const selDate=state.selDate;
+      const draft=state.draft[prod.id];
+
+      // 날짜별 최신 실사기록 (중복 제거)
+      // ★ isRealInv 필터 먼저: 같은 날 판매 레코드(ts 높음)가 실사 레코드를 덮어쓰는 것 방지
+      const allSiteRecs=toArr(state.db.site).filter(r=>r.productId===prod.id&&isRealInv(r));
+      const dedupedMap=allSiteRecs.reduce((map,r)=>{
+        if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;
+        return map;
+      },{});
+      const sortedRecs=Object.values(dedupedMap)
+        .sort((a,b)=>b.date.localeCompare(a.date)); // 최신순
+
+      const hasUnsaved=draft&&!draft.saved&&(draft.storage!==''&&draft.storage!==undefined);
+      if(sortedRecs.length===0&&!hasUnsaved)
+        return el('span',{style:{color:'var(--t3)',fontSize:'10px'}},'미입력');
+
+      const wrap=el('div',{style:{display:'flex',flexDirection:'column',gap:'3px'}});
+
+      const latestRec=hasUnsaved?null:sortedRecs[0];
+
+      // ── 메인 상태 (크게, 탭하면 오버레이) ──
+      const openOverlay=e=>{
+        e.stopPropagation();
+        state._verifyOverlay={pid:prod.id,productName:prod.name,focusMo:null};
+        render();
+      };
+
+      if(hasUnsaved){
+        const v=verify(prod.id,selDate,draft.storage||'0',draft.drawer||'0');
+        const diff=v&&!v.isFirst&&!v.ok?(v.actual-(v.expectedFromBase??v.expected)):null;
+        const badge=el('div',{style:{cursor:'pointer',display:'inline-flex',alignItems:'center',gap:'3px'}});
+        badge.addEventListener('click',openOverlay);
+        badge.append(
+          el('span',{style:{fontSize:'9px',color:'var(--pm)',fontStyle:'italic'}},'입력중'),
+          diff!==null
+            ?el('span',{class:'ver',style:{fontSize:'10px'}},`${diff>0?'+':''}${diff}`)
+            :v&&v.isFirst
+              ?el('span',{style:{fontSize:'9px',color:'var(--t3)'}},'첫기록')
+              :el('span',{style:{fontSize:'13px'}},'✅')
+        );
+        wrap.append(badge);
+      } else if(!latestRec){
+        wrap.append(el('span',{style:{fontSize:'9px',color:'var(--t3)'}},'미입력'));
+      } else {
+        // 오버레이와 동일한 기준: isRealInv 있는 기록 중 가장 최신
+        // sortedRecs는 이미 isRealInv 필터 + 최신순 정렬되어 있으므로 [0]이 정확한 latestRec
+        const v=verify(prod.id,latestRec.date,getS(latestRec),getD(latestRec));
+        const isBad=v&&!v.isFirst&&!v.ok;
+        const isOk=v&&!v.isFirst&&v.ok;
+        const diff=isBad?v.actual-(v.expectedFromBase!==undefined?v.expectedFromBase:v.expected):null;
+
+        const statusEl=el('div',{style:{
+          cursor:'pointer',display:'inline-flex',alignItems:'center',gap:'4px',
+          padding:'3px 6px',borderRadius:'8px',
+          background:isBad?'#FDEDEC':isOk?'#F1FFF8':'transparent',
+          border:isBad?'1px solid #FFCDD2':isOk?'1px solid #C8E6C9':'none'
+        }});
+        statusEl.addEventListener('click',openOverlay);
+
+        if(isBad){
+          statusEl.append(
+            el('span',{style:{fontSize:'13px',fontWeight:'700',color:'var(--er)'}},
+              `${diff>0?'+':''}${diff}`),
+            el('span',{style:{fontSize:'9px',color:'var(--er)'}},'불일치')
+          );
+        } else if(isOk){
+          statusEl.append(el('span',{style:{fontSize:'15px'}},'✅'));
+        } else {
+          statusEl.append(el('span',{style:{fontSize:'9px',color:'var(--t3)'}},'첫기록'));
+        }
+
+        // 최신 실사일 작게
+        statusEl.append(el('span',{style:{fontSize:'8px',color:'var(--t3)',marginLeft:'1px'}},
+          fmtDate(latestRec.date)));
+        wrap.append(statusEl);
+      }
+
+      return wrap;
+    })();
+
+    return el('tr',null,
+      el('td',{style:{backgroundColor:bg}},prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
+      el('td',{style:{backgroundColor:bg,color:'var(--t3)'}},st?st.sample:'-'),
+      el('td',{class:noData?'':'auto-c',style:noData?{backgroundColor:bg,color:'var(--t3)',fontStyle:'italic'}:{backgroundColor:bg}},st?st.storage:'-'),
+      el('td',{class:noData?'':'auto-c',style:noData?{backgroundColor:bg,color:'var(--t3)',fontStyle:'italic'}:{backgroundColor:bg}},st?st.drawer:'-'),
+      el('td',{class:'auto-c',style:noData?{backgroundColor:bg,color:'var(--t3)',fontStyle:'italic'}:{backgroundColor:bg}},st?st.total:'-'),
+      el('td',{style:{backgroundColor:bg}},recentDateCell),
+      el('td',{style:{backgroundColor:bg,textAlign:'center'}},monthlyCell),
+      el('td',{style:{backgroundColor:bg,textAlign:'center'}},salesCell),
+      el('td',{style:{backgroundColor:bg}},verifyCell)
+    );
+  }));
+  // 선택된 년/월의 모든 비고 (판매비고 + 증정/폐기 비고) — 단일 토글 칩
+  const allDayNotes={...(state.db.dayNotes||{})};
+  toArr(state.db.site).forEach(r=>{if(r.dayNote&&r.dayNote.trim())allDayNotes[r.date]=r.dayNote;});
+
+  const allNoteItems=[];
+  // 판매비고 수집
+  Object.entries(allDayNotes)
+    .filter(([date,note])=>note&&note.trim()&&date>=filterFrom&&date<=filterTo)
+    .forEach(([date,note])=>{
+      const rec=toArr(state.db.site).filter(r=>r.date===date&&r.dayNote).sort((a,b)=>b.ts-a.ts)[0];
+      allNoteItems.push({date,type:'판매비고',productName:'',note,ts:rec?.ts||null});
+    });
+  // 증정/폐기 비고 수집
+  const seenOgKeys=new Set();
+  toArr(state.db.site)
+    .filter(r=>r.date>=filterFrom&&r.date<=filterTo)
+    .forEach(r=>{
+      toArr(r.outgoing||[]).forEach(o=>{
+        if(o.note&&o.note.trim()){
+          const k=r.date+'_'+r.productId+'_'+o.type;
+          if(!seenOgKeys.has(k)){
+            seenOgKeys.add(k);
+            allNoteItems.push({date:r.date,type:o.type+' 비고',productName:r.productName,note:o.note,ts:r.ts||null});
+          }
+        }
+      });
+    });
+  // 불일치 비고 수집
+  const seenVerifyKeys=new Set();
+  toArr(state.db.site)
+    .filter(r=>r.date>=filterFrom&&r.date<=filterTo&&r.verifyNote&&r.verifyNote.trim())
+    .forEach(r=>{
+      const k=r.date+'_'+r.productId;
+      if(!seenVerifyKeys.has(k)){
+        seenVerifyKeys.add(k);
+        allNoteItems.push({date:r.date,type:'불일치 비고',productName:r.productName,note:r.verifyNote,ts:r.ts||null});
+      }
+    });
+  allNoteItems.sort((a,b)=>a.date.localeCompare(b.date)||(a.ts||0)-(b.ts||0));
+
+  if(allNoteItems.length>0){
+    const panelKey='allnote_panel_'+selYear+'_'+selMonth;
+    const isPanelOpen=!!state._noteExpanded?.[panelKey];
+    const toggleChip=el('button',{style:{
+      display:'inline-flex',alignItems:'center',gap:'4px',
+      background:isPanelOpen?'#FFF3CD':'#FFF8E1',
+      border:'1px solid '+(isPanelOpen?'var(--acc)':'#F9A825'),
+      borderRadius:'20px',padding:'3px 10px',cursor:'pointer',
+      fontSize:'10px',fontWeight:'600',color:'var(--acc)',marginTop:'6px',
+      boxShadow:'0 1px 2px rgba(0,0,0,.06)'
+    }},`📝 비고 ${allNoteItems.length}건 ${isPanelOpen?'▲':'▼'}`);
+    toggleChip.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(!state._noteExpanded)state._noteExpanded={};
+      state._noteExpanded[panelKey]=!isPanelOpen;
+      render();
+    });
+    let panel=null;
+    if(isPanelOpen){
+      const TYPE_COLOR={'판매비고':'var(--acc)','증정 비고':'var(--ok)','폐기 비고':'var(--er)','불일치 비고':'#7B3F9E'};
+      const rows=allNoteItems.map((item,i)=>{
+        const tsStr=item.ts?fmtTs(item.ts):'';
+        const typeColor=TYPE_COLOR[item.type]||'var(--pm)';
+        return el('div',{style:{
+          display:'flex',gap:'5px',alignItems:'flex-start',fontSize:'10px',lineHeight:'1.5',
+          padding:'4px 0',borderBottom:i<allNoteItems.length-1?'.5px solid #FFE88A':'none'
+        }},
+          el('div',{style:{flexShrink:'0',minWidth:'60px'}},
+            el('div',{style:{color:'var(--acc)',fontWeight:'700',whiteSpace:'nowrap'}},`🗒 ${fmtDate(item.date)}`),
+            tsStr?el('div',{style:{fontSize:'8px',color:'var(--t3)'}},'⏱ '+tsStr):null
+          ),
+          el('div',{style:{flexShrink:'0'}},
+            el('span',{style:{background:typeColor,color:'#fff',borderRadius:'5px',padding:'1px 5px',fontSize:'8px',fontWeight:'700',whiteSpace:'nowrap'}},item.type),
+            item.productName?el('div',{style:{fontSize:'8px',color:'var(--t3)',marginTop:'1px'}},'['+item.productName+']'):null
+          ),
+          el('span',{style:{color:'var(--t2)',wordBreak:'break-all',flex:'1'}},item.note)
+        );
+      });
+      panel=el('div',{style:{
+        display:'flex',flexDirection:'column',marginTop:'6px',
+        padding:'8px',background:'#FFFDE7',border:'1px solid #F9A825',borderRadius:'8px',
+        maxHeight:'220px',overflowY:'auto'
+      }},...rows);
+    }
+    currentStockTable._dayNoteEl=el('div',null,toggleChip,panel);
+  } else {
+    currentStockTable._dayNoteEl=null;
+  }
+
+  return el('div',{class:'tbl-wrap'},el('table',{class:'tbl'},thead,tbody));
+}
+
+// ── 실사 입력 테이블 ──────────────────────────────────────────
+function inventoryTable(){
+  const prods=getProds();
+  const date=state.selDate;
+  const thead=el('thead',null,el('tr',null,
+    el('th',null,'제품명'),
+    el('th',null,'보관함'),
+    el('th',null,'인포서랍'),
+    el('th',null,'당일반입'),
+    el('th',null,'실사합계')
+  ));
+  const rows=prods.map(prod=>{
+    const d=state.draft[prod.id]||{storage:'',drawer:'',sales:0};
+    const dayTransfer=toArr(state.db.wh)
+      .filter(r=>r.productId===prod.id&&isFieldTransfer(r.type)&&r.date===date)
+      .reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+    const total=getTotal(d.storage,d.drawer,prod);
+    const bg=CAT_BG[prod.cat];
+    const storI=el('input',{type:'number',class:'t-inp',min:'0',value:d.storage,placeholder:'0'});
+    storI.addEventListener('change',e=>{
+      if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false};
+      state.draft[prod.id].storage=e.target.value;
+      state.draft[prod.id].dirty=true;
+    });
+    const isBook=prod.cat==='도서';
+    // 도서는 인포서랍에 보관 안 함 → 드래프트에도 0 고정
+    if(isBook){
+      if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'0',sales:0,outgoing:[],dirty:false};
+      state.draft[prod.id].drawer='0';
+    }
+    const drawI=isBook
+      ?el('span',{style:{fontSize:'11px',color:'var(--t3)',display:'block',textAlign:'center',padding:'3px'}},'-')
+      :el('input',{type:'number',class:'t-inp',min:'0',value:d.drawer,placeholder:'0'});
+    if(!isBook){
+      drawI.addEventListener('change',e=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,dirty:false};
+        state.draft[prod.id].drawer=e.target.value;
+        state.draft[prod.id].dirty=true;
+      });
+    }
+    const invRec=getDateRec(prod.id,date);
+    const invSavedTs=invRec?.ts||null;
+    return el('tr',null,
+      el('td',{style:{backgroundColor:bg}},
+        el('div',null,prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
+        d.saved
+          ?el('div',{style:{fontSize:'8px',color:'var(--ok)',marginTop:'1px'}},
+              '✓ 실사저장',
+              invSavedTs?el('span',{style:{color:'var(--t3)',marginLeft:'3px'}},fmtTs(invSavedTs)):null
+            )
+          :null
+      ),
+      el('td',{style:{backgroundColor:bg}},storI),
+      el('td',{style:{backgroundColor:bg}},drawI),
+      el('td',{style:{backgroundColor:bg,textAlign:'center'}},
+        dayTransfer>0
+          ?el('span',{style:{color:'var(--pm)',fontWeight:'700',fontSize:'12px'}},'+'+dayTransfer)
+          :el('span',{style:{color:'var(--t3)'}},'-')
+      ),
+      el('td',{style:{backgroundColor:bg},class:'auto-c'},total!=null?total:'-')
+    );
+  });
+  return el('div',{class:'tbl-wrap'},el('table',{class:'tbl'},thead,el('tbody',null,...rows)));
+}
+
+// ── 판매 입력 테이블 ──────────────────────────────────────────
+function salesTable(){
+  const prods=getProds();
+  const date=state.selDate;
+
+  const hasSaved=prods.some(prod=>{
+    const rec=getDateRec(prod.id,date);
+    return rec&&(parseInt(rec.sales)>0||toArr(rec.outgoing||[]).some(o=>o.qty>0));
+  });
+
+  // 인라인 메모 팝업 (? 버튼 클릭 시)
+  function memoPopup(key,savedVal,onSave){
+    const isOpen=!!state._memoOpen?.[key];
+    const qBtn=el('button',{style:{
+      background:'none',border:'1px solid var(--bd)',borderRadius:'50%',
+      width:'16px',height:'16px',fontSize:'9px',cursor:'pointer',
+      color:savedVal?'var(--pm)':'var(--t3)',lineHeight:'1',padding:'0',flexShrink:'0',
+      display:'inline-flex',alignItems:'center',justifyContent:'center'
+    }},savedVal?'📝':'?');
+    qBtn.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(!state._memoOpen)state._memoOpen={};
+      state._memoOpen[key]=!isOpen;
+      render();
+    });
+    if(!isOpen)return qBtn;
+    const inp=el('input',{type:'text',
+      style:{width:'100%',marginTop:'3px',border:'1px solid var(--bd)',borderRadius:'5px',
+        padding:'3px 7px',fontSize:'10px',outline:'none'},
+      placeholder:'비고 메모...',
+      value:state._memoVals?.[key]!==undefined?state._memoVals[key]:savedVal
+    });
+    inp.addEventListener('input',e=>{
+      if(!state._memoVals)state._memoVals={};
+      state._memoVals[key]=e.target.value;
+    });
+    const saveBtn=el('button',{style:{
+      marginTop:'2px',width:'100%',padding:'2px',fontSize:'9px',
+      background:'var(--p)',color:'#fff',border:'none',borderRadius:'4px',cursor:'pointer'
+    }},'저장');
+    saveBtn.addEventListener('click',()=>{
+      const val=(state._memoVals?.[key])||'';
+      onSave(val);
+      if(!state._memoOpen)state._memoOpen={};
+      state._memoOpen[key]=false;
+      if(!state._memoVals)state._memoVals={};
+      state._memoVals[key]=undefined;
+    });
+    const wrap=el('div',{style:{width:'100%'}},inp,saveBtn);
+    return el('div',{style:{display:'flex',flexDirection:'column',alignItems:'flex-start'}},qBtn,wrap);
+  }
+
+  function qtyCtrl(val,onMinus,onPlus,color){
+    function addTap(btn,fn){
+      let _touched=false;
+      btn.addEventListener('touchend',e=>{
+        e.preventDefault();
+        _touched=true;
+        setTimeout(()=>{_touched=false;},400);
+        fn();
+      },{passive:false});
+      btn.addEventListener('click',()=>{if(!_touched)fn();});
+    }
+    const mn=el('button',{class:'t-btn'},'−');addTap(mn,onMinus);
+    const pl=el('button',{class:'t-btn'},'+');addTap(pl,onPlus);
+    const num=el('span',{class:'t-num',style:{color:color||'var(--acc)'}},String(val||0));
+    return el('div',{class:'t-sales'},mn,num,pl);
+  }
+
+  const thead=el('thead',null,el('tr',null,
+    el('th',null,'제품명'),
+    el('th',null,'실사합계'),
+    el('th',{style:{color:'#FFE082'}},'판매'),
+    el('th',{style:{color:'#C8E6C9'}},'증정'),
+    el('th',{style:{color:'#FFCDD2'}},'폐기')
+  ));
+
+  const rows=prods.map(prod=>{
+    const d=state.draft[prod.id]||{storage:'',drawer:'',sales:0,outgoing:[]};
+    const outgoing=d.outgoing||[];
+    const giftEntry=outgoing.find(o=>o.type==='증정')||{qty:0,note:''};
+    const giftQty=parseInt(giftEntry.qty)||0;
+    const wasteEntry=outgoing.find(o=>o.type==='폐기')||{qty:0,note:''};
+    const wasteQty=parseInt(wasteEntry.qty)||0;
+    const total=getTotal(d.storage,d.drawer,prod);
+    const bg=CAT_BG[prod.cat];
+    const rec=getDateRec(prod.id,date);
+
+    // 증정 메모 저장
+    const giftMemoKey=date+'_gift_'+prod.id;
+    const savedGiftMemo=giftEntry.note||'';
+    const giftMemo=memoPopup(giftMemoKey,savedGiftMemo,(val)=>{
+      // 증정 메모를 outgoing에 저장
+      if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+      const og=state.draft[prod.id].outgoing||[];
+      const gi=og.findIndex(o=>o.type==='증정');
+      if(gi>=0)og[gi].note=val;else og.push({type:'증정',qty:giftQty,note:val});
+      state.draft[prod.id].outgoing=og;
+      // 즉시 저장
+      const newSite=toArr(state.db.site).map(r=>{
+        if(r.productId!==prod.id||r.date!==date)return r;
+        const existOg=toArr(r.outgoing||[]);
+        const gi2=existOg.findIndex(o=>o.type==='증정');
+        if(gi2>=0)existOg[gi2].note=val;else existOg.push({type:'증정',qty:giftQty,note:val});
+        return{...r,outgoing:existOg,ts:Date.now()};
+      });
+      persist({...state.db,site:newSite});showToast('✓ 증정 메모 저장');
+    });
+
+    // 폐기 메모 저장
+    const wasteMemoKey=date+'_waste_'+prod.id;
+    const savedWasteMemo=wasteEntry.note||'';
+    const wasteMemo=memoPopup(wasteMemoKey,savedWasteMemo,(val)=>{
+      if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+      const og=state.draft[prod.id].outgoing||[];
+      const wi=og.findIndex(o=>o.type==='폐기');
+      if(wi>=0)og[wi].note=val;else og.push({type:'폐기',qty:wasteQty,note:val});
+      state.draft[prod.id].outgoing=og;
+      const newSite=toArr(state.db.site).map(r=>{
+        if(r.productId!==prod.id||r.date!==date)return r;
+        const existOg=toArr(r.outgoing||[]);
+        const wi2=existOg.findIndex(o=>o.type==='폐기');
+        if(wi2>=0)existOg[wi2].note=val;else existOg.push({type:'폐기',qty:wasteQty,note:val});
+        return{...r,outgoing:existOg,ts:Date.now()};
+      });
+      persist({...state.db,site:newSite});showToast('✓ 폐기 메모 저장');
+    });
+
+    // 판매 +/-
+    const salesCtrl=qtyCtrl(d.sales,
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        state.draft[prod.id].sales=Math.max(0,(state.draft[prod.id].sales||0)-1);
+        state.draft[prod.id].dirty=true;render();
+      },
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        state.draft[prod.id].sales=(state.draft[prod.id].sales||0)+1;
+        state.draft[prod.id].dirty=true;render();
+      },'var(--acc)'
+    );
+
+    // 증정 +/-
+    const giftCtrl=qtyCtrl(giftQty,
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        const og=state.draft[prod.id].outgoing||[];
+        const gi=og.findIndex(o=>o.type==='증정');
+        if(gi>=0)og[gi].qty=Math.max(0,(parseInt(og[gi].qty)||0)-1);
+        else og.push({type:'증정',qty:0,note:''});
+        state.draft[prod.id].outgoing=og;state.draft[prod.id].dirty=true;render();
+      },
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        const og=state.draft[prod.id].outgoing||[];
+        const gi=og.findIndex(o=>o.type==='증정');
+        if(gi>=0)og[gi].qty=(parseInt(og[gi].qty)||0)+1;
+        else og.push({type:'증정',qty:1,note:''});
+        state.draft[prod.id].outgoing=og;state.draft[prod.id].dirty=true;render();
+      },'var(--pm)'
+    );
+
+    // 폐기 +/-
+    const wasteCtrl=qtyCtrl(wasteQty,
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        const og=state.draft[prod.id].outgoing||[];
+        const wi=og.findIndex(o=>o.type==='폐기');
+        if(wi>=0)og[wi].qty=Math.max(0,(parseInt(og[wi].qty)||0)-1);
+        else og.push({type:'폐기',qty:0,note:''});
+        state.draft[prod.id].outgoing=og;state.draft[prod.id].dirty=true;render();
+      },
+      ()=>{
+        if(!state.draft[prod.id])state.draft[prod.id]={storage:'',drawer:'',sales:0,outgoing:[],dirty:false};
+        const og=state.draft[prod.id].outgoing||[];
+        const wi=og.findIndex(o=>o.type==='폐기');
+        if(wi>=0)og[wi].qty=(parseInt(og[wi].qty)||0)+1;
+        else og.push({type:'폐기',qty:1,note:''});
+        state.draft[prod.id].outgoing=og;state.draft[prod.id].dirty=true;render();
+      },'var(--er)'
+    );
+
+    const savedLabel=rec&&(parseInt(rec.sales)>0||toArr(rec.outgoing||[]).some(o=>o.qty>0))&&!d?.dirty
+      ?el('div',{style:{fontSize:'8px',color:'var(--ok)',marginTop:'1px'}},
+          `✓ 판매${rec.sales||0}개`+(giftQty>0?` 증정${giftQty}개`:'')+(wasteQty>0?` 폐기${wasteQty}개`:''),
+          rec.ts?el('span',{style:{color:'var(--t3)',marginLeft:'3px'}},fmtTs(rec.ts)):null
+        ):null;
+
+    return el('tr',null,
+      el('td',{style:{backgroundColor:bg}},
+        el('div',null,prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),savedLabel
+      ),
+      el('td',{style:{backgroundColor:bg},class:'auto-c'},total!=null?total:'-'),
+      el('td',{style:{backgroundColor:bg}},salesCtrl),
+      el('td',{style:{backgroundColor:bg}},
+        el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:'2px'}},giftCtrl,giftMemo)
+      ),
+      el('td',{style:{backgroundColor:bg}},
+        el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:'2px'}},wasteCtrl,wasteMemo)
+      )
+    );
+  });
+
+  return el('div',null,
+    hasSaved?el('div',{class:'ibox info',style:{margin:'4px 12px'}},'저장된 출고 내역이 있어요. 수정 후 출고 저장을 누르세요.'):null,
+    el('div',{class:'tbl-wrap'},el('table',{class:'tbl'},thead,el('tbody',null,...rows)))
+  );
+}
+
+// ── 현장재고 페이지 ─────────────────────────────────────────
+function sitePage(){
+
+  // 기준재고 설정 카드
+  function siteInitCard(){
+    const prods=getProds();
+    const rows=prods.map(prod=>{
+      const dbVal=state.db.siteInit[prod.id]||{};
+      const cur={...dbVal,...(state.initSiteVals[prod.id]||{})};
+      const bg=CAT_BG[prod.cat];
+      const si=el('input',{type:'number',class:'init-inp',min:'0',value:cur.storage??'',placeholder:'0'});
+      si.addEventListener('input',e=>{
+        const prev=state.initSiteVals[prod.id]||{...dbVal};
+        state.initSiteVals[prod.id]={...prev,storage:e.target.value};
+      });
+      const di=el('input',{type:'number',class:'init-inp',min:'0',value:cur.drawer??'',placeholder:'0'});
+      di.addEventListener('input',e=>{
+        const prev=state.initSiteVals[prod.id]||{...dbVal};
+        state.initSiteVals[prod.id]={...prev,drawer:e.target.value};
+      });
+      const curTotal=(prod.sample||0)+(parseInt(cur.storage)||0)+(parseInt(cur.drawer)||0);
+      return el('div',{class:'init-row',style:{backgroundColor:bg}},
+        el('div',{class:'init-name'},prod.name,
+          el('span',{class:`cb cb-${prod.cat}`},prod.cat),
+          el('span',{style:{fontSize:'9px',color:'var(--t3)',marginLeft:'3px'}},`샘플${prod.sample}`),
+          el('span',{style:{fontSize:'9px',color:'var(--acc)',marginLeft:'5px',fontWeight:'600'}},`합계 ${curTotal}`)
+        ),
+        el('div',{style:{display:'flex',gap:'5px',alignItems:'flex-end',flexShrink:0}},fld('보관함',si),fld('인포서랍',di))
+      );
+    });
+    const btn=el('button',{class:'sbtn sm'},'기준재고 저장');
+    btn.addEventListener('click',()=>{
+      const ni={...state.db.siteInit};
+      Object.entries(state.initSiteVals).forEach(([pid,v])=>{
+        const existing=state.db.siteInit[pid]||{};
+        ni[pid]={
+          storage:v.storage!==undefined?parseInt(v.storage)||0:(existing.storage||0),
+          drawer:v.drawer!==undefined?parseInt(v.drawer)||0:(existing.drawer||0)
+        };
+      });
+      persist({...state.db,siteInit:ni});
+      state.showInitSite=false;state.initSiteVals={};
+      state.draft=initDraft(state.selDate);
+      showToast('✓ 기준재고 저장됨');
+    });
+    return el('div',{style:{borderTop:'1px solid var(--bd)',marginTop:'8px',paddingTop:'8px'}},el('div',{class:'ct',style:{marginBottom:'6px'}},'🏷 현장 기준재고 설정'),...rows,btn);
+  }
+
+  // 날짜 선택
+  const di=el('input',{type:'date',class:'date-inp',value:state.selDate});
+  di.addEventListener('change',e=>{
+    const newDate=e.target.value;
+    state.selDate=newDate;
+    state.draft=initDraft(newDate);
+    render();
+  });
+
+  // 담당자 선택 UI 제거됨
+
+  // 기록된 날짜 빠른 선택 (최근 10개) - 실사/판매 저장 상태 표시
+  const recDates=[...new Set(toArr(state.db.site).map(r=>r.date))].sort((a,b)=>b.localeCompare(a)).slice(0,10);
+  const datePills=el('div',{style:{display:'flex',gap:'4px',flexWrap:'wrap',padding:'4px 0 2px'}},
+    ...recDates.map(date=>{
+      const recs=toArr(state.db.site).filter(r=>r.date===date);
+      const hasSales=recs.some(r=>parseInt(r.sales)>0);
+      const label=fmtDate(date)+(hasSales?' 🛒':'');
+      const btn=el('button',{class:'pill'+(date===state.selDate?' on':''),style:{fontSize:'10px'}},label);
+      btn.addEventListener('click',()=>{state.selDate=date;state.draft=initDraft(date);render();});
+      return btn;
+    })
+  );
+
+  // 저장 버튼 두 개
+  const invSaveBtn=el('button',{class:'sbtn'},`📋 실사 저장 (${fmtDateFull(state.selDate)})`);
+  invSaveBtn.addEventListener('click',saveInventory);
+  const salesSaveBtn=el('button',{class:'sbtn teal',style:{marginTop:'6px'}},`🛒 출고 저장 (${fmtDateFull(state.selDate)})`);
+  salesSaveBtn.addEventListener('click',saveSales);
+
+  // 선택 날짜 실사/판매 저장 여부
+  const selDateRecs=toArr(state.db.site).filter(r=>r.date===state.selDate);
+  const selDateHasInv=selDateRecs.length>0;
+  const selDateHasSales=selDateRecs.some(r=>parseInt(r.sales)>0);
+
+  // 상단 실재고 카드 (반입 년/월 셀렉트 포함)
+  const stockTable=currentStockTable();
+  const filterEl=currentStockTable._filterEl;
+  const dayNoteEl=currentStockTable._dayNoteEl;
+  const topCard=el('div',{class:'card'},
+    el('div',{class:'ct'},'📊 현재 실재고',
+      el('div',{style:{display:'flex',gap:'6px',alignItems:'center'}},
+        filterEl,
+        el('span',{class:'ct-act',onclick:()=>set({showInitSite:!state.showInitSite})},state.showInitSite?'닫기':'기준재고 설정')
+      )
+    ),
+    dayNoteEl,
+    state.showInitSite?siteInitCard():null
+  );
+
+  // 불일치 항목 요약 배너 (가장 최신 실사 기준)
+  const mismatchItems=[];
+  getProds().forEach(prod=>{
+    const rec=getLatestRec(prod.id,toDay());
+    if(!rec||!isRealInv(rec))return;
+    const v=verify(prod.id,rec.date,getS(rec),getD(rec));
+    if(v&&!v.isFirst&&!v.ok)
+      mismatchItems.push({prod,rec,diff:v.actual-(v.expectedFromBase!==undefined?v.expectedFromBase:v.expected)});
+  });
+
+  const mismatchBanner=mismatchItems.length===0?null:el('div',{style:{
+    margin:'0 0 6px 0',background:'#FFF0F0',border:'1px solid var(--er)',
+    borderRadius:'var(--r2)',padding:'8px 12px'
+  }},
+    el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'6px'}},
+      el('span',{style:{fontWeight:'700',fontSize:'12px',color:'var(--er)'}}
+        ,`⚠️ 검증 불일치 ${mismatchItems.length}건`),
+      el('span',{style:{fontSize:'9px',color:'var(--t3)'}},'최신 실사 기준')
+    ),
+    el('div',{style:{display:'flex',flexDirection:'column',gap:'4px'}},
+      ...mismatchItems.map(({prod,rec,diff})=>el('div',{
+        style:{
+          display:'flex',alignItems:'center',gap:'6px',
+          background:'#fff',borderRadius:'6px',padding:'4px 8px',
+          border:'1px solid #FFCDD2',cursor:'pointer'
+        },
+        onclick:()=>{state._verifyOverlay={pid:prod.id,productName:prod.name,focusMo:rec.date.slice(0,7)};render();}
+      },
+        el('span',{class:`cb cb-${prod.cat}`,style:{flexShrink:'0'}},prod.cat),
+        el('span',{style:{fontSize:'11px',fontWeight:'600',flex:'1',color:'var(--t)'}},prod.name),
+        el('span',{style:{fontSize:'9px',color:'var(--t3)'}},'최신:'+fmtDate(rec.date)),
+        el('span',{class:'ver',style:{fontSize:'11px'}},`${diff>0?'+':''}${diff}`)
+      ))
+    )
+  );
+  // ── 선택 날짜 비고 요약 ──
+  const selDateNotes=(()=>{
+    const d=state.selDate;
+    const items=[];
+    // 판매 비고 (dayNote)
+    const dayNote=(()=>{
+      const r=toArr(state.db.site).find(r=>r.date===d&&r.dayNote);
+      return r?.dayNote||state.db.dayNotes?.[d]||'';
+    })();
+    if(dayNote.trim())items.push({type:'판매',icon:'📝',note:dayNote,prod:''});
+    // 증정/폐기/기타 비고
+    toArr(state.db.site).filter(r=>r.date===d).forEach(r=>{
+      toArr(r.outgoing||[]).forEach(o=>{
+        if(o.note&&o.note.trim()){
+          const prod=getProds().find(p=>p.id===r.productId);
+          items.push({type:o.type,icon:o.type==='증정'?'🎁':o.type==='폐기'?'🗑️':'📦',note:o.note,prod:prod?.name||''});
+        }
+      });
+    });
+    if(items.length===0)return null;
+    return el('div',{style:{
+      margin:'6px 0 0',padding:'8px 12px',
+      background:'var(--wb)',border:'1px solid var(--bd)',
+      borderRadius:'var(--r2)',display:'flex',flexDirection:'column',gap:'5px'
+    }},
+      el('div',{style:{fontSize:'10px',fontWeight:'700',color:'var(--t2)',marginBottom:'2px'}},'📋 선택 날짜 비고'),
+      ...items.map(item=>el('div',{style:{display:'flex',alignItems:'flex-start',gap:'6px',fontSize:'11px'}},
+        el('span',{style:{
+          flexShrink:'0',fontSize:'9px',fontWeight:'600',
+          background:item.type==='판매'?'#FFF9E6':item.type==='증정'?'#F1FFF8':'#FFF5F5',
+          color:item.type==='판매'?'var(--acc)':item.type==='증정'?'var(--ok)':'var(--er)',
+          border:'1px solid '+(item.type==='판매'?'#FFE082':item.type==='증정'?'#C8E6C9':'#FFCDD2'),
+          borderRadius:'8px',padding:'1px 6px'
+        }},item.icon+' '+item.type+(item.prod?' · '+item.prod:'')),
+        el('span',{style:{color:'var(--t)',lineHeight:'1.5',wordBreak:'break-all'}},item.note)
+      ))
+    );
+  })();
+
+  const dateCard=el('div',{class:'card'},
+    el('div',{class:'ct'},'📋 실사 날짜 선택'),
+    el('div',{style:{display:'flex',alignItems:'center',gap:'8px',marginBottom:recDates.length>0?'8px':'0'}},di),
+    recDates.length>0?datePills:null,
+    selDateNotes
+  );
+
+  // 판매 입력 날짜 단위 비고 (dayNote)
+  const salesDayNoteKey='salesdaynote_'+state.selDate;
+  const isDayNoteOpen=!!state._memoOpen?.[salesDayNoteKey];
+  // 저장된 dayNote 읽기: 해당 날짜 site 레코드 중 아무거나에서
+  const savedDayNote=(()=>{
+    const r=toArr(state.db.site).find(r=>r.date===state.selDate&&r.dayNote);
+    return r?.dayNote||state.db.dayNotes?.[state.selDate]||'';
+  })();
+
+  const dayNoteQBtn=el('button',{style:{
+    background:'none',border:'1px solid '+(savedDayNote?'var(--acc)':'var(--bd)'),borderRadius:'50%',
+    width:'18px',height:'18px',fontSize:'10px',cursor:'pointer',
+    color:savedDayNote?'var(--acc)':'var(--t3)',lineHeight:'1',padding:'0',flexShrink:'0',
+    display:'inline-flex',alignItems:'center',justifyContent:'center'
+  }},savedDayNote?'📝':'?');
+  dayNoteQBtn.addEventListener('click',e=>{
+    e.stopPropagation();
+    if(!state._memoOpen)state._memoOpen={};
+    state._memoOpen[salesDayNoteKey]=!isDayNoteOpen;
+    render();
+  });
+
+  const dayNoteBlock=(()=>{
+    if(!isDayNoteOpen)return null;
+    const inp=el('input',{type:'text',
+      style:{flex:'1',border:'1px solid var(--bd)',borderRadius:'6px',
+        padding:'5px 8px',fontSize:'11px',outline:'none'},
+      placeholder:'판매 비고 메모 (날짜 전체 공통)...',
+      value:state._memoVals?.[salesDayNoteKey]!==undefined?state._memoVals[salesDayNoteKey]:savedDayNote
+    });
+    inp.addEventListener('input',e=>{
+      if(!state._memoVals)state._memoVals={};
+      state._memoVals[salesDayNoteKey]=e.target.value;
+    });
+    // 포커스 자동
+    setTimeout(()=>inp.focus(),50);
+    const saveBtn=el('button',{style:{
+      padding:'5px 12px',fontSize:'11px',fontWeight:'600',
+      background:'var(--p)',color:'#fff',border:'none',borderRadius:'6px',cursor:'pointer',flexShrink:'0'
+    }},'저장');
+    saveBtn.addEventListener('click',()=>{
+      const val=(state._memoVals?.[salesDayNoteKey])||'';
+      // 해당 날짜의 모든 site 레코드에 dayNote 저장
+      const newSite=toArr(state.db.site).map(r=>
+        r.date===state.selDate?{...r,dayNote:val,ts:Date.now()}:r
+      );
+      // dayNotes에도 기록 (레코드 없는 날도 대비)
+      const newDayNotes={...(state.db.dayNotes||{}),[state.selDate]:val};
+      persist({...state.db,site:newSite,dayNotes:newDayNotes});
+      if(!state._memoOpen)state._memoOpen={};
+      state._memoOpen[salesDayNoteKey]=false;
+      if(!state._memoVals)state._memoVals={};
+      state._memoVals[salesDayNoteKey]=undefined;
+      showToast('✓ 판매 비고 저장');
+    });
+    return el('div',{style:{display:'flex',gap:'6px',alignItems:'center',marginTop:'6px',padding:'0 2px'}},inp,saveBtn);
+  })();
+
+  const salesNoteDisplay=savedDayNote&&!isDayNoteOpen
+    ?el('div',{style:{fontSize:'10px',color:'var(--pm)',background:'var(--wb)',
+        borderRadius:'6px',padding:'4px 8px',marginTop:'4px',lineHeight:'1.4'}},
+        `📝 ${savedDayNote}`)
+    :null;
+
+  return el('div',null,
+    topCard,
+    mismatchBanner,
+    stockTable,
+    dateCard,
+    el('div',{class:'card'},
+      el('div',{class:'ct'},
+        `📋 실사 입력 — ${fmtDateFull(state.selDate)}`,
+        selDateHasInv?el('span',{style:{fontSize:'10px',color:'var(--ok)',fontWeight:'600'}},'✓ 저장됨'):null
+      )
+    ),
+    inventoryTable(),
+    invSaveBtn,
+    el('div',{class:'card',style:{marginTop:'4px'}},
+      el('div',{class:'ct'},
+        `🛒 판매 입력 — ${fmtDateFull(state.selDate)}`,
+        el('div',{style:{display:'flex',alignItems:'center',gap:'6px'}},
+          selDateHasSales?el('span',{style:{fontSize:'10px',color:'var(--ok)',fontWeight:'600'}},'✓ 저장됨'):null,
+          dayNoteQBtn
+        )
+      ),
+      dayNoteBlock,
+      salesNoteDisplay,
+      // ── 저장된 출고 요약 ──
+      (()=>{
+        const prods=getProds();
+        const date=state.selDate;
+        const items=prods.map(prod=>{
+          const rec=getDateRec(prod.id,date);
+          if(!rec)return null;
+          const s=parseInt(rec.sales)||0;
+          const g=toArr(rec.outgoing||[]).filter(o=>o.type==='증정').reduce((a,o)=>a+(parseInt(o.qty)||0),0);
+          const w=toArr(rec.outgoing||[]).filter(o=>o.type==='폐기').reduce((a,o)=>a+(parseInt(o.qty)||0),0);
+          if(s===0&&g===0&&w===0)return null;
+          return{prod,s,g,w};
+        }).filter(Boolean);
+        if(items.length===0)return null;
+        return el('div',{style:{
+          margin:'6px 0 2px',padding:'8px 12px',
+          background:'var(--surf2)',borderRadius:'var(--r2)',
+          border:'1px solid var(--bd)',display:'flex',flexDirection:'column',gap:'5px'
+        }},
+          el('div',{style:{fontSize:'10px',fontWeight:'700',color:'var(--t2)',marginBottom:'2px'}},
+            '📦 '+fmtDate(date)+' 저장된 출고 내역'),
+          ...items.map(({prod,s,g,w})=>el('div',{style:{
+            display:'flex',alignItems:'center',gap:'6px',
+            padding:'4px 8px',borderRadius:'8px',
+            background:'var(--wb)',border:'1px solid var(--bd)'
+          }},
+            el('span',{class:`cb cb-${prod.cat}`,style:{flexShrink:'0'}},prod.cat),
+            el('span',{style:{fontSize:'11px',fontWeight:'600',flex:'1',color:'var(--t)'}},prod.name),
+            s>0?el('span',{style:{
+              fontSize:'10px',fontWeight:'700',color:'var(--acc)',
+              background:'#FFF9E6',border:'1px solid #FFE082',
+              borderRadius:'8px',padding:'1px 7px'
+            }},`판매 ${s}`):null,
+            g>0?el('span',{style:{
+              fontSize:'10px',fontWeight:'700',color:'var(--ok)',
+              background:'#F1FFF8',border:'1px solid #C8E6C9',
+              borderRadius:'8px',padding:'1px 7px'
+            }},`증정 ${g}`):null,
+            w>0?el('span',{style:{
+              fontSize:'10px',fontWeight:'700',color:'var(--er)',
+              background:'#FFF0F0',border:'1px solid #FFCDD2',
+              borderRadius:'8px',padding:'1px 7px'
+            }},`폐기 ${w}`):null,
+            el('span',{style:{
+              fontSize:'10px',fontWeight:'700',color:'var(--t2)',
+              background:'var(--surf2)',border:'1px solid var(--bd)',
+              borderRadius:'8px',padding:'1px 7px',marginLeft:'2px'
+            }},`총 ${s+g+w}`)
+          ))
+        );
+      })()
+    ),
+    salesTable(),
+    salesSaveBtn
+  );
+}
+
+
+// ── 창고재고 페이지 ─────────────────────────────────────────
+function whPage(){
+  const f=state.wh;
+
+  function whInitCard(){
+    const prods=getProds();
+    const rows=prods.map(prod=>{
+      const cur=state.initWhVals[prod.id]??state.db.whInit[prod.id]??'';
+      const inp=el('input',{type:'number',class:'init-inp',min:'0',value:cur,placeholder:'0'});
+      inp.addEventListener('input',e=>{state.initWhVals[prod.id]=e.target.value;});
+      return el('div',{class:'init-row',style:{backgroundColor:CAT_BG[prod.cat]}},
+        el('div',{class:'init-name'},prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
+        fld('수량',inp)
+      );
+    });
+    const btn=el('button',{class:'sbtn sm'},'창고 기준재고 저장');
+    btn.addEventListener('click',()=>{
+      const ni={...state.db.whInit};
+      Object.entries(state.initWhVals).forEach(([pid,v])=>{ni[pid]=parseInt(v)||0;});
+      persist({...state.db,whInit:ni});state.showInitWh=false;state.initWhVals={};
+      showToast('✓ 창고 기준재고 저장됨');
+    });
+    return el('div',{class:'card'},el('div',{class:'ct'},'🏭 창고 기준재고 설정'),...rows,btn);
+  }
+
+  // 창고 현황 테이블 (기준재고 항상 표시, 인라인 편집 가능)
+  const prods=getProds();
+  const thead=el('thead',null,el('tr',null,
+    el('th',null,'제품명'),
+    el('th',null,'기준재고'),
+    el('th',{style:{color:'var(--okb)'}},'+창고반입'),
+    el('th',{style:{color:'#FFCDD2'}},'-창고→현장'),
+    el('th',null,'현재고')
+  ));
+  const tbody=el('tbody',null,...prods.map(prod=>{
+    const bg=CAT_BG[prod.cat];
+    const init=parseInt(state.db.whInit[prod.id])||0;
+    const mv=toArr(state.db.wh).filter(r=>r.productId===prod.id);
+    const inQ=mv.filter(r=>r.type==='창고반입'||r.type==='입고').reduce((s,r)=>s+r.qty,0);
+    const siteQ=mv.filter(r=>isFieldTransfer(r.type)).reduce((s,r)=>s+r.qty,0);
+    const curr=init+inQ-siteQ;
+    const initInp=el('input',{type:'number',class:'t-inp',min:'0',value:init,placeholder:'0',style:{width:'48px'}});
+    initInp.addEventListener('change',e=>{
+      const ni={...state.db.whInit,[prod.id]:parseInt(e.target.value)||0};
+      persist({...state.db,whInit:ni});
+      showToast(`✓ ${prod.name} 기준재고 저장`);
+    });
+    return el('tr',null,
+      el('td',{style:{backgroundColor:bg}},prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
+      el('td',{style:{backgroundColor:bg}},initInp),
+      el('td',{style:{backgroundColor:bg,color:'var(--ok)',fontWeight:'600',textAlign:'center'}},inQ>0?'+'+inQ:el('span',{style:{color:'var(--t3)'}},'0')),
+      el('td',{style:{backgroundColor:bg,color:'var(--er)',fontWeight:'600',textAlign:'center'}},siteQ>0?'-'+siteQ:el('span',{style:{color:'var(--t3)'}},'0')),
+      el('td',{class:'auto-c',style:{backgroundColor:bg,color:curr<=0?'var(--er)':'var(--p)',fontWeight:'700'}},curr)
+    );
+  }));
+
+  // 입력 폼
+  const prodList=getProds().filter(p=>p.cat===f.cat);
+  const di=el('input',{type:'date',class:'inp',value:f.date});di.addEventListener('change',e=>Object.assign(state.wh,{date:e.target.value})&&render());
+  const tp=pillsEl(['창고반입','창고→현장'],f.type,v=>{state.wh.type=v;render();});
+  const cp=pillsEl(CATS,f.cat,c=>{state.wh.cat=c;state.wh.pid='';render();},true);
+  const ps=selEl(f.pid,[['','— 품목 선택 —'],...prodList.map(p=>[p.id,p.name])],v=>{state.wh.pid=v;render();});
+  const qi=el('input',{type:'number',class:'inp',min:'0',value:f.qty,placeholder:'0'});qi.addEventListener('input',e=>{state.wh.qty=e.target.value;});
+  const ni=el('input',{type:'text',class:'inp',value:f.note||'',placeholder:'비고'});ni.addEventListener('input',e=>{state.wh.note=e.target.value;});
+  const isEditWh=!!state.editWhId;
+  const sb=el('button',{class:'sbtn sm'},isEditWh?'✓ 수정 저장':'저장');
+  sb.addEventListener('click',()=>{
+    if(!f.pid||!f.qty)return showToast('품목과 수량을 입력해주세요');
+    const p=getProds().find(x=>x.id===f.pid);
+    if(isEditWh){
+      // 기존 기록 교체
+      const updated=toArr(state.db.wh).map(r=>r.id===state.editWhId
+        ?{...r,date:f.date,cat:f.cat,productId:f.pid,productName:p.name,type:f.type,qty:parseInt(f.qty),note:f.note||''}
+        :r);
+      persist({...state.db,wh:updated});
+      state.editWhId=null;
+      state.wh={date:toDay(),cat:'굿즈',pid:'',type:'창고반입',qty:'',note:''};
+      showToast('✓ 수정됨');
+    } else {
+      persist({...state.db,wh:[...state.db.wh,{id:uid(),date:f.date,cat:f.cat,productId:f.pid,productName:p.name,type:f.type,qty:parseInt(f.qty),note:f.note||'',ts:Date.now()}]});
+      state.wh={...state.wh,pid:'',qty:'',note:''};showToast('✓ 저장');
+    }
+  });
+  const cancelBtn=isEditWh?el('button',{class:'sbtn sm sec',style:{marginTop:'6px'}},'취소'):null;
+  if(cancelBtn)cancelBtn.addEventListener('click',()=>{
+    state.editWhId=null;
+    state.wh={date:toDay(),cat:'굿즈',pid:'',type:'창고반입',qty:'',note:''};
+    render();
+  });
+
+  return el('div',null,
+    el('div',{class:'card'},
+      el('div',{class:'ct'},'📊 현재 창고 재고'),
+      el('div',{style:{fontSize:'10px',color:'var(--t3)'}},
+        '기준재고는 테이블에서 직접 수정 가능해요'
+      )
+    ),
+    el('div',{class:'tbl-wrap'},el('table',{class:'tbl'},thead,tbody)),
+    el('div',{class:'card',style:isEditWh?{borderTop:'3px solid var(--p)'}:{}},
+      el('div',{class:'ct'},isEditWh?'✏️ 기록 수정 중':'➕ 창고 입출고 / 창고→현장 기록'),
+      fld('날짜',di),
+      el('div',{style:{margin:'8px 0'}},tp),
+      el('div',{style:{margin:'8px 0'}},cp),
+      fld('품목',ps),
+      el('div',{style:{marginTop:'8px'}},fld('수량',qi)),
+      el('div',{style:{marginTop:'8px'}},el('label',{class:'label'},'비고'),ni),
+      sb,cancelBtn
+    )
+  );
+}
+
+// ── 전체재고 합계 페이지 (현장재고 + 창고재고) ────────────────
+function totalPage(){
+  const prods=getProds();
+  const rows=prods.map(prod=>{
+    const site=getCurrentStock(prod.id);
+    const siteTotal=site?site.total:0;
+    const whTotal=getCurrentWhStock(prod.id);
+    return{prod,siteTotal,whTotal,combined:siteTotal+whTotal};
+  });
+
+  // 카테고리별 소계
+  const catSums={};
+  CATS.forEach(c=>{catSums[c]={site:0,wh:0,total:0};});
+  rows.forEach(r=>{
+    catSums[r.prod.cat].site+=r.siteTotal;
+    catSums[r.prod.cat].wh+=r.whTotal;
+    catSums[r.prod.cat].total+=r.combined;
+  });
+  const grand={
+    site:rows.reduce((s,r)=>s+r.siteTotal,0),
+    wh:rows.reduce((s,r)=>s+r.whTotal,0),
+    total:rows.reduce((s,r)=>s+r.combined,0)
+  };
+
+  const thead=el('thead',null,el('tr',null,
+    el('th',null,'제품명'),
+    el('th',null,'현장재고'),
+    el('th',null,'창고재고'),
+    el('th',null,'합계')
+  ));
+
+  const tbody=el('tbody',null,
+    ...rows.map(r=>{
+      const bg=CAT_BG[r.prod.cat];
+      return el('tr',null,
+        el('td',{style:{backgroundColor:bg}},r.prod.name,el('span',{class:`cb cb-${r.prod.cat}`},r.prod.cat)),
+        el('td',{style:{backgroundColor:bg,textAlign:'center'}},r.siteTotal),
+        el('td',{style:{backgroundColor:bg,textAlign:'center'}},r.whTotal),
+        el('td',{class:'auto-c',style:{backgroundColor:bg,textAlign:'center',fontWeight:'700',color:r.combined<=0?'var(--er)':'var(--p)'}},r.combined)
+      );
+    }),
+    ...CATS.map(c=>{
+      const s=catSums[c];
+      return el('tr',{style:{background:'var(--surf2)'}},
+        el('td',{style:{fontWeight:'700',fontSize:'10px'}},`${c} 소계`),
+        el('td',{style:{textAlign:'center',fontWeight:'700'}},s.site),
+        el('td',{style:{textAlign:'center',fontWeight:'700'}},s.wh),
+        el('td',{style:{textAlign:'center',fontWeight:'700',color:'var(--acc)'}},s.total)
+      );
+    }),
+    el('tr',{style:{background:'var(--p)'}},
+      el('td',{style:{color:'#fff',fontWeight:'700'}},'전체 합계'),
+      el('td',{style:{color:'#fff',textAlign:'center',fontWeight:'700'}},grand.site),
+      el('td',{style:{color:'#fff',textAlign:'center',fontWeight:'700'}},grand.wh),
+      el('td',{style:{color:'#fff',textAlign:'center',fontWeight:'700',fontSize:'13px'}},grand.total)
+    )
+  );
+
+  return el('div',null,
+    el('div',{class:'card'},
+      el('div',{class:'ct'},'🧮 전체 재고 합계'),
+      el('div',{style:{fontSize:'10px',color:'var(--t3)'}},'현장재고와 창고재고를 합산한 전체 재고 현황이에요 · 우측 상단 ⬇ 종합 버튼으로 엑셀 내보내기 시 최상단에 포함돼요')
+    ),
+    el('div',{class:'tbl-wrap'},el('table',{class:'tbl'},thead,tbody))
+  );
+}
+
+// ── 재고 대분류 탭: 합계재고 / 현장재고 / 창고재고 서브탭 ──────
+function stockSubTabs(){
+  const items=[['total','🧮 합계재고'],['site','🏪 현장재고'],['wh','🏭 창고재고']];
+  return el('div',{style:{display:'flex',gap:'6px',padding:'10px 12px 2px'}},
+    ...items.map(([key,label])=>{
+      const on=state.stockTab===key;
+      const b=el('button',{class:'pill'+(on?' on':''),style:{flex:'1',textAlign:'center',padding:'8px 4px'}},label);
+      b.addEventListener('click',()=>{state.stockTab=key;render();});
+      return b;
+    })
+  );
+}
+function stockPage(){
+  const body=state.stockTab==='wh'?whPage():state.stockTab==='total'?totalPage():sitePage();
+  return el('div',null,stockSubTabs(),body);
+}
+
+// ── 입출고 기록 페이지 ──────────────────────────────────────
+function histPage(){
+  if(!state._histCat)state._histCat='전체';
+  if(!state._histMonth)state._histMonth='전체';
+  if(!state._histType)state._histType='전체';
+  if(!state._histOpenDates)state._histOpenDates={};
+
+  const allRecs=toArr(state.db.wh).sort((a,b)=>b.date.localeCompare(a.date)||b.ts-a.ts);
+  const months=[...new Set(allRecs.map(r=>r.date.slice(0,7)))].sort((a,b)=>b.localeCompare(a));
+  const catF=state._histCat;
+  const monthF=state._histMonth;
+  const typeF=state._histType;
+
+  const filtered=allRecs
+    .filter(r=>catF==='전체'||r.cat===catF)
+    .filter(r=>monthF==='전체'||r.date.startsWith(monthF))
+    .filter(r=>{
+      if(typeF==='전체')return true;
+      if(typeF==='창고반입')return r.type==='창고반입'||r.type==='입고';
+      if(typeF==='창고→현장')return isFieldTransfer(r.type);
+      return true;
+    });
+
+  // ── 상품별 누적 수량 집계표 ──
+  const prods=getProds().filter(p=>catF==='전체'||p.cat===catF);
+  const summaryRows=prods.map(prod=>{
+    const recs=filtered.filter(r=>r.productId===prod.id);
+    const inQ=recs.filter(r=>r.type==='창고반입'||r.type==='입고').reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+    const siteQ=recs.filter(r=>isFieldTransfer(r.type)).reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+    if(inQ===0&&siteQ===0)return null;
+    const bg=CAT_BG[prod.cat];
+    return el('tr',null,
+      el('td',{style:{backgroundColor:bg}},prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
+      el('td',{style:{backgroundColor:bg,color:'var(--ok)',fontWeight:'700',textAlign:'center'}},inQ>0?'+'+inQ:'-'),
+      el('td',{style:{backgroundColor:bg,color:'var(--p)',fontWeight:'700',textAlign:'center'}},siteQ>0?'+'+siteQ:'-')
+    );
+  }).filter(Boolean);
+
+  const summaryTable=summaryRows.length>0?el('div',{class:'tbl-wrap'},
+    el('table',{class:'tbl'},
+      el('thead',null,el('tr',null,
+        el('th',null,'제품명'),
+        el('th',null,'창고반입'),
+        el('th',null,'창고→현장')
+      )),
+      el('tbody',null,...summaryRows)
+    )
+  ):el('div',{class:'empty'},'해당 기간 기록이 없어요');
+
+  // ── 날짜별 상세 기록 ──
+  const byDate={};
+  filtered.forEach(r=>{
+    if(!byDate[r.date])byDate[r.date]=[];
+    byDate[r.date].push(r);
+  });
+  const dates=Object.keys(byDate).sort((a,b)=>b.localeCompare(a));
+
+  const groups=dates.map(date=>{
+    const recs=byDate[date];
+    const isOpen=!!state._histOpenDates[date];
+    const inTotal=recs.filter(r=>r.type==='창고반입'||r.type==='입고').reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+    const siteTotal=recs.filter(r=>isFieldTransfer(r.type)).reduce((s,r)=>s+(parseInt(r.qty)||0),0);
+
+    const hdr=el('div',{style:{
+      display:'flex',alignItems:'center',justifyContent:'space-between',
+      padding:'10px 12px',cursor:'pointer',background:'#fff',
+      borderRadius:'var(--r)',margin:'5px 12px',boxShadow:'var(--sh)'
+    }});
+    hdr.addEventListener('click',()=>{state._histOpenDates[date]=!isOpen;render();});
+
+    const left=el('div',null,
+      el('div',{style:{fontWeight:'600',fontSize:'12px'}},fmtDateFull(date)),
+      el('div',{style:{fontSize:'10px',color:'var(--t3)',marginTop:'2px'}},
+        `${recs.length}건`,
+        inTotal>0?el('span',{style:{color:'var(--ok)',marginLeft:'6px',fontWeight:'600'}},`창고반입+${inTotal}`):null,
+        siteTotal>0?el('span',{style:{color:'var(--p)',marginLeft:'6px',fontWeight:'600'}},`창고→현장+${siteTotal}`):null
+      )
+    );
+    hdr.append(left,el('span',{style:{fontSize:'14px',color:'var(--p)'}},isOpen?'▲':'▼'));
+
+    const body=isOpen?recs.map(r=>{
+      const editBtn=el('button',{class:'del-btn',style:{color:'var(--pm)',fontSize:'12px'}},'✏️');
+      editBtn.addEventListener('click',()=>{
+        state.editWhId=r.id;
+        state.wh={date:r.date,cat:r.cat,pid:r.productId,type:isFieldTransfer(r.type)?'창고→현장':r.type==='입고'?'창고반입':r.type,qty:String(r.qty),note:r.note||''};
+        set({tab:0,stockTab:'wh'});
+      });
+      const delBtn=el('button',{class:'del-btn',style:{color:'var(--er)',fontWeight:'700',fontSize:'14px'}},'×');
+      delBtn.addEventListener('click',e=>{
+        e.stopPropagation();
+        if(!confirm(`"${r.productName}" 기록을 삭제할까요?`))return;
+        persist({...state.db,wh:toArr(state.db.wh).filter(x=>x.id!==r.id)});
+        showToast('✓ 삭제됨');
+      });
+      const typeLabel=isFieldTransfer(r.type)?'창고→현장':(r.type==='입고'?'창고반입':r.type);
+      const isIn=r.type==='창고반입'||r.type==='입고';
+      const isSite=isFieldTransfer(r.type);
+      return el('div',{class:'wh-rec',style:{margin:'2px 12px',borderRadius:'8px'}},
+        el('div',null,
+          el('div',{style:{fontWeight:'600',fontSize:'12px'}},r.productName,el('span',{class:`cb cb-${r.cat}`},r.cat)),
+          r.note?el('div',{style:{fontSize:'9px',color:'var(--t3)',marginTop:'1px'}},r.note):null
+        ),
+        el('div',{style:{display:'flex',alignItems:'center',gap:'6px'}},
+          el('span',{class:'wh-badge '+(isIn?'wh-in':isSite?'wh-site':'wh-out')},typeLabel),
+          el('span',{style:{fontSize:'15px',fontWeight:'700',color:isIn?'var(--ok)':isSite?'var(--p)':'var(--er)'}},r.qty+'개'),
+          editBtn,delBtn
+        )
+      );
+    }):[];
+
+    return el('div',null,hdr,...body);
+  });
+
+  return el('div',null,
+    el('div',{class:'card'},
+      el('div',{class:'ct'},'📋 창고 입출고 기록'),
+      el('div',{style:{marginBottom:'6px'}},
+        el('div',{style:{fontSize:'10px',color:'var(--t2)',marginBottom:'4px',fontWeight:'600'}},'월별'),
+        el('div',{class:'pills'},
+          ...[{val:'전체',label:'전체'},...months.map(m=>{
+            const[y,mo]=m.split('-');
+            return{val:m,label:`${y.slice(2)}.${parseInt(mo)}월`};
+          })].map(({val,label})=>{
+            const b=el('button',{class:'pill pill-sm'+(monthF===val?' on':'')},label);
+            b.addEventListener('click',()=>{state._histMonth=val;state._histOpenDates={};render();});
+            return b;
+          })
+        )
+      ),
+      el('div',{style:{marginBottom:'6px'}},
+        el('div',{style:{fontSize:'10px',color:'var(--t2)',marginBottom:'4px',fontWeight:'600'}},'유형'),
+        pillsEl(['전체','창고반입','창고→현장'],typeF,v=>{state._histType=v;state._histOpenDates={};render();},true)
+      ),
+      el('div',null,
+        el('div',{style:{fontSize:'10px',color:'var(--t2)',marginBottom:'4px',fontWeight:'600'}},'카테고리'),
+        pillsEl(['전체',...CATS],catF,v=>{state._histCat=v;state._histOpenDates={};render();},true)
+      )
+    ),
+    el('div',{class:'card'},
+      el('div',{class:'ct'},(()=>{
+        if(monthF==='전체') return '📊 상품별 누적 수량 (전체)';
+        const[y,mo]=monthF.split('-');
+        const label=`${y}년 ${parseInt(mo)}월`;
+        return `📊 상품별 누적 수량 (${label})`;
+      })()),
+      summaryTable
+    ),
+    el('div',{class:'sec-label'},'날짜별 상세'),
+    dates.length===0?el('div',{class:'empty'},'기록이 없어요'):groups
+  );
+}
+
+
+// ── 품목관리 페이지 ─────────────────────────────────────────
+function prodPage(){
+  const prods=getProds();
+  const fp=state.formProd||{cat:'굿즈',name:'',sample:'',drawer:false,editId:null};
+  const isEdit=!!fp.editId;
+
+  function startEdit(prod){
+    state.formProd={editId:prod.id,cat:prod.cat,name:prod.name,sample:prod.sample,drawer:prod.drawer};
+    render();
+  }
+  function moveUp(idx){if(idx===0)return;const np=[...prods];[np[idx-1],np[idx]]=[np[idx],np[idx-1]];persist({...state.db,products:np});}
+  function moveDown(idx){if(idx===prods.length-1)return;const np=[...prods];[np[idx],np[idx+1]]=[np[idx+1],np[idx]];persist({...state.db,products:np});}
+
+  const rows=prods.map((prod,idx)=>{
+    const up=el('button',{class:'del-btn',style:{color:idx===0?'var(--t3)':'var(--p)',fontSize:'11px'}},'↑');up.addEventListener('click',()=>moveUp(idx));
+    const dn=el('button',{class:'del-btn',style:{color:idx===prods.length-1?'var(--t3)':'var(--p)',fontSize:'11px'}},'↓');dn.addEventListener('click',()=>moveDown(idx));
+    const ed=el('button',{class:'del-btn',style:{color:'var(--pm)',fontSize:'12px'}},'✏️');ed.addEventListener('click',()=>startEdit(prod));
+    const dl=el('button',{class:'del-btn',style:{color:'var(--er)',fontWeight:'700'}},'-');
+    dl.addEventListener('click',()=>{if(!confirm(`"${prod.name}" 삭제할까요?`))return;persist({...state.db,products:prods.filter((_,i)=>i!==idx)});});
+    return el('div',{class:'init-row',style:{backgroundColor:CAT_BG[prod.cat]}},
+      el('div',{style:{display:'flex',gap:'0',flexShrink:0}},up,dn),
+      el('div',{class:'init-name',style:{margin:'0 5px'}},prod.name,
+        el('span',{class:`cb cb-${prod.cat}`},prod.cat),
+        el('span',{style:{fontSize:'9px',color:'var(--t3)',marginLeft:'3px'}},`샘플${prod.sample}`)
+      ),
+      el('div',{style:{display:'flex',gap:'1px',flexShrink:0}},ed,dl)
+    );
+  });
+
+  const catPills=pillsEl(CATS,fp.cat,c=>{state.formProd={...fp,cat:c};render();},true);
+  const nameInp=el('input',{type:'text',class:'inp',value:fp.name,placeholder:'제품명 입력'});
+  nameInp.addEventListener('input',e=>{state.formProd={...state.formProd,name:e.target.value};});
+  const sampleInp=el('input',{type:'number',class:'inp',min:'0',value:fp.sample,placeholder:'0'});
+  sampleInp.addEventListener('input',e=>{state.formProd={...state.formProd,sample:e.target.value};});
+  const drawerCheck=el('input',{type:'checkbox'});drawerCheck.checked=!!fp.drawer;
+  drawerCheck.addEventListener('change',e=>{state.formProd={...state.formProd,drawer:e.target.checked};});
+
+  const saveBtn=el('button',{class:'sbtn sm'},isEdit?'수정 저장':'+ 품목 추가');
+  saveBtn.addEventListener('click',()=>{
+    if(!state.formProd.name.trim())return showToast('제품명을 입력해주세요');
+    const sample=parseInt(state.formProd.sample)||0;
+    if(isEdit){
+      persist({...state.db,products:prods.map(p=>p.id===fp.editId?{...p,cat:state.formProd.cat,name:state.formProd.name.trim(),sample,drawer:!!state.formProd.drawer}:p)});
+    } else {
+      persist({...state.db,products:[...prods,{id:'C'+Date.now(),cat:state.formProd.cat,name:state.formProd.name.trim(),sample,drawer:!!state.formProd.drawer}]});
+    }
+    state.formProd=null;showToast(isEdit?'✓ 수정됨':'✓ 추가됨');
+  });
+  const cancelBtn=isEdit?el('button',{class:'sbtn sm sec'},'취소'):null;
+  if(cancelBtn)cancelBtn.addEventListener('click',()=>{state.formProd=null;render();});
+  const resetBtn=el('button',{class:'sbtn sm sec',style:{marginTop:'6px'}},'기본 17개 품목으로 초기화');
+  resetBtn.addEventListener('click',()=>{if(!confirm('초기화할까요?'))return;persist({...state.db,products:[]});state.formProd=null;showToast('✓ 초기화됨');});
+
+  return el('div',null,
+    el('div',{class:'card'},
+      el('div',{class:'ct'},`📋 품목 목록 (${prods.length}개)`),
+      ...rows
+    ),
+    el('div',{class:'card',style:isEdit?{borderTop:'3px solid var(--p)'}:{}},
+      el('div',{class:'ct'},isEdit?`✏️ "${fp.name}" 수정 중`:'➕ 품목 추가'),
+      el('div',{style:{marginBottom:'8px'}},el('label',{class:'label'},'카테고리'),catPills),
+      el('div',{style:{marginBottom:'7px'}},el('label',{class:'label'},'제품명'),nameInp),
+      el('div',{style:{marginBottom:'7px',display:'flex',gap:'14px',alignItems:'center'}},
+        el('label',{style:{display:'flex',alignItems:'center',gap:'5px',fontSize:'12px',cursor:'pointer'}},drawerCheck,'인포서랍 있음')
+      ),
+      el('div',{style:{marginBottom:'7px'}},el('label',{class:'label'},'샘플 고정수량'),sampleInp),
+      saveBtn,cancelBtn
+    ),
+    el('div',{class:'card'},resetBtn)
+  );
+}
+
+// ── 월별 판매 현황 페이지 ────────────────────────────────────
+function salesPage(){
+  const prods=getProds();
+
+  // 데이터가 있는 월 목록
+  const allMonths=[...new Set(
+    toArr(state.db.site).map(r=>r.date.slice(0,7))
+  )].sort((a,b)=>b.localeCompare(a));
+
+  if(allMonths.length===0)
+    return el('div',{class:'empty',style:{marginTop:'40px'}},'저장된 판매 기록이 없어요');
+
+  if(!state._salesMo||!allMonths.includes(state._salesMo))
+    state._salesMo=allMonths[0];
+
+  const selMo=state._salesMo;
+  const[selY,selM]=selMo.split('-');
+  const moLabel=`${selY}년 ${parseInt(selM)}월`;
+
+  // 월 선택 pill
+  const moPills=el('div',{style:{display:'flex',gap:'5px',flexWrap:'wrap',padding:'4px 0'}});
+  allMonths.forEach(mo=>{
+    const[y,m]=mo.split('-');
+    const b=el('button',{class:'pill pill-sm'+(mo===selMo?' on':'')},`${y.slice(2)}.${parseInt(m)}월`);
+    b.addEventListener('click',()=>{state._salesMo=mo;render();});
+    moPills.append(b);
+  });
+
+  // 해당 월 데이터 집계
+  const moFrom=`${selMo}-01`;
+  const moLastDay=new Date(parseInt(selY),parseInt(selM),0).getDate();
+  const moTo=`${selMo}-${String(moLastDay).padStart(2,'0')}`;
+
+  // 날짜별 최신 레코드 (중복 제거)
+  const monthRecs=Object.values(
+    toArr(state.db.site)
+      .filter(r=>r.date>=moFrom&&r.date<=moTo)
+      .reduce((map,r)=>{
+        const k=r.productId+'_'+r.date;
+        if(!map[k]||r.ts>map[k].ts)map[k]=r;
+        return map;
+      },{})
+  );
+
+  // 카테고리 필터
+  const catF=state._salesCat||'전체';
+  const filteredProds=prods.filter(p=>catF==='전체'||p.cat===catF);
+
+  // 상품별 집계
+  let totalSales=0,totalGift=0,totalWaste=0,totalOut=0;
+  const rows=filteredProds.map(prod=>{
+    const recs=monthRecs.filter(r=>r.productId===prod.id);
+    const sales=recs.reduce((s,r)=>s+(parseInt(r.sales)||0),0);
+    const gift=recs.reduce((s,r)=>s+toArr(r.outgoing||[]).filter(o=>o.type==='증정').reduce((a,o)=>a+(parseInt(o.qty)||0),0),0);
+    const waste=recs.reduce((s,r)=>s+toArr(r.outgoing||[]).filter(o=>o.type==='폐기').reduce((a,o)=>a+(parseInt(o.qty)||0),0),0);    const out=sales+gift+waste;
+    if(sales===0&&gift===0&&waste===0)return null;
+    totalSales+=sales;totalGift+=gift;totalWaste+=waste;totalOut+=out;
+    const bg=CAT_BG[prod.cat];
+    return el('tr',null,
+      el('td',{style:{backgroundColor:bg}},prod.name,el('span',{class:`cb cb-${prod.cat}`},prod.cat)),
+      el('td',{style:{backgroundColor:bg,textAlign:'center',fontWeight:'600',color:'var(--acc)'}},sales||'-'),
+      el('td',{style:{backgroundColor:bg,textAlign:'center',color:'var(--ok)'}},gift||'-'),
+      el('td',{style:{backgroundColor:bg,textAlign:'center',color:'var(--er)'}},waste||'-'),
+      el('td',{style:{backgroundColor:bg,textAlign:'center',fontWeight:'700',color:'var(--pm)'}},out||'-')
+    );
+  }).filter(Boolean);
+
+  const hasData=rows.length>0;
+
+  return el('div',null,
+    el('div',{class:'card'},
+      el('div',{class:'ct'},'📊 월별 판매 현황'),
+      moPills,
+      el('div',{style:{marginTop:'6px'}},
+        pillsEl(['전체',...CATS],catF,v=>{state._salesCat=v;render();},true)
+      )
+    ),
+    hasData?el('div',{class:'card'},
+      el('div',{class:'ct'},`🛒 ${moLabel} 판매 집계`),
+      el('div',{style:{display:'flex',gap:'8px',marginBottom:'8px',flexWrap:'wrap'}},
+        el('div',{style:{flex:'1',minWidth:'60px',background:'#FFF8E1',borderRadius:'8px',padding:'8px',textAlign:'center'}},
+          el('div',{style:{fontSize:'10px',color:'var(--t3)'}},'판매'),
+          el('div',{style:{fontSize:'18px',fontWeight:'700',color:'var(--acc)'}},totalSales)
+        ),
+        el('div',{style:{flex:'1',minWidth:'60px',background:'#F1F8E9',borderRadius:'8px',padding:'8px',textAlign:'center'}},
+          el('div',{style:{fontSize:'10px',color:'var(--t3)'}},'증정'),
+          el('div',{style:{fontSize:'18px',fontWeight:'700',color:'var(--ok)'}},totalGift)
+        ),
+        el('div',{style:{flex:'1',minWidth:'60px',background:'#FFF0F0',borderRadius:'8px',padding:'8px',textAlign:'center'}},
+          el('div',{style:{fontSize:'10px',color:'var(--t3)'}},'폐기'),
+          el('div',{style:{fontSize:'18px',fontWeight:'700',color:'var(--er)'}},totalWaste)
+        ),
+        el('div',{style:{flex:'1',minWidth:'60px',background:'#EDE7F6',borderRadius:'8px',padding:'8px',textAlign:'center'}},
+          el('div',{style:{fontSize:'10px',color:'var(--t3)'}},'총출고'),
+          el('div',{style:{fontSize:'18px',fontWeight:'700',color:'var(--pm)'}},totalOut)
+        )
+      ),
+      el('div',{class:'tbl-wrap'},el('table',{class:'tbl'},
+        el('thead',null,el('tr',null,
+          el('th',null,'제품명'),
+          el('th',{style:{color:'#FFE082'}},'판매'),
+          el('th',{style:{color:'#C8E6C9'}},'증정'),
+          el('th',{style:{color:'#FFCDD2'}},'폐기'),
+          el('th',null,'총출고')
+        )),
+        el('tbody',null,...rows)
+      ))
+    ):el('div',{class:'empty'},`${moLabel}에 판매 기록이 없어요`)
+  );
+}
+
+
+function render(){
+  // 로딩 중
+  if(state._loading){
+    const root=document.getElementById('app');
+    root.innerHTML='';
+    root.append(el('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100vh',gap:'12px',color:'var(--t2)'}},
+      el('div',{style:{fontSize:'28px'}},'🏛'),
+      el('div',{style:{fontSize:'13px',fontWeight:'600'}},'뮤지엄샵 재고관리'),
+      el('div',{style:{fontSize:'11px',color:'var(--t3)'}},'데이터 불러오는 중...')
+    ));
+    return;
+  }
+  // draft 초기화 (첫 렌더)
+  if(!state._draftInit){
+    state.draft=initDraft(state.selDate);
+    state._draftInit=true;
+  }
+
+  // 스크롤 위치 저장
+  const scrollY=window.scrollY;
+
+
+  const root=document.getElementById('app');
+  root.innerHTML='';
+  root.append(
+    el('div',{class:'hdr'},
+      el('div',{class:'hdr-logo'},
+        el('div',{class:'hdr-logo-text'},
+          el('div',{class:'hdr-title'},'오디움'),
+          el('div',{class:'hdr-line'}),
+          el('div',{class:'hdr-sub'},'뮤 지 엄 샵')
+        )
+      ),
+      el('div',{class:'hdr-r'},
+      el('div',{style:{display:'flex',gap:'4px'}},
+        state.tab===0&&state.stockTab==='site'?el('button',{class:'hdr-btn',onclick:()=>exportSite()},'현장기록'):null,
+        state.tab===0&&state.stockTab==='wh'?el('button',{class:'hdr-btn',onclick:()=>exportWh()},'창고기록'):null,
+        el('button',{class:'hdr-btn',style:{background:'rgba(255,255,255,.25)'},onclick:()=>set({_showExportPicker:true})},'⬇ 종합')
+      )
+    )
+    ),
+    state.tab===0?stockPage():state.tab===1?histPage():state.tab===2?salesPage():prodPage(),
+    el('nav',{class:'nav'},
+      ...['📦 재고','📋 입출고기록','📊 월별판매','⚙️ 품목관리'].map((lbl,i)=>{
+        const b=el('button',{class:'nb'+(state.tab===i?' on':'')},
+          el('span',{style:{fontSize:'16px'}},lbl.split(' ')[0]),
+          el('span',null,lbl.split(' ')[1]),
+          el('div',{class:'nb-dot'})
+        );
+        b.addEventListener('click',()=>set({tab:i}));return b;
+      })
+    )
+  );
+  if(state.toast)root.append(el('div',{class:'toast'},state.toast));
+
+  // ── 검증 상세 오버레이 (월별 그룹) ──
+  if(state._verifyOverlay){
+    const{pid,productName,focusMo,showCumulative}=state._verifyOverlay;
+    const prod=getProds().find(p=>p.id===pid);
+
+    // 날짜별 최신 기록 (중복 제거, 오래된 순) — 판매만 기록된 날도 월 그룹에는 포함
+    const allRecs=toArr(state.db.site).filter(r=>r.productId===pid);
+    const dedMap=allRecs.reduce((m,r)=>{if(!m[r.date]||r.ts>m[r.date].ts)m[r.date]=r;return m;},{});
+    const sortedAsc=Object.values(dedMap).sort((a,b)=>a.date.localeCompare(b.date));
+    // 실재고 있는 기록만으로 "가장 최신 실사일" 산출 (verifyCell/mismatchBanner와 동일 기준)
+    const latestInvRec=sortedAsc.filter(r=>isRealInv(r)).slice(-1)[0]||null;
+
+    // 월별 그룹
+    const moGrouped={};
+    sortedAsc.forEach(rec=>{
+      const mo=rec.date.slice(0,7);
+      if(!moGrouped[mo])moGrouped[mo]=[];
+      moGrouped[mo].push(rec);
+    });
+    const moKeys=Object.keys(moGrouped).sort((a,b)=>b.localeCompare(a)); // 최신 월 먼저
+
+    const overlay=el('div',{style:{
+      position:'fixed',inset:'0',background:'rgba(0,0,0,.5)',zIndex:'60',
+      display:'flex',alignItems:'flex-end'
+    }});
+    overlay.addEventListener('click',e=>{if(e.target===overlay)set({_verifyOverlay:null});});
+
+    const sheet=el('div',{style:{
+      width:'100%',background:'#fff',borderRadius:'20px 20px 0 0',
+      maxHeight:'88vh',display:'flex',flexDirection:'column',
+      boxShadow:'0 -4px 24px rgba(0,0,0,.2)'
+    }});
+
+    // 헤더
+    const hdr=el('div',{style:{
+      padding:'14px 16px 10px',borderBottom:'.5px solid var(--bd)',
+      position:'sticky',top:'0',background:'#fff',zIndex:'1',flexShrink:'0'
+    }},
+      el('div',{style:{width:'36px',height:'4px',background:'var(--bd)',borderRadius:'2px',margin:'0 auto 10px'}}),
+      el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+        el('div',null,
+          el('div',{style:{fontWeight:'700',fontSize:'14px'}},`🔍 ${productName} 검증 이력`),
+          el('div',{style:{fontSize:'10px',color:'var(--t3)',marginTop:'2px'}},'월별 실사 검증 내역 · 클릭하여 계산 상세 확인')
+        ),
+        el('button',{style:{
+          background:'none',border:'none',fontSize:'20px',color:'var(--t3)',cursor:'pointer',padding:'0 4px'
+        },onclick:()=>set({_verifyOverlay:null})},'×')
+      )
+    );
+
+    // 현재 최신 실사 검증 상태 배지 (실재고 테이블과 동일 기준)
+    const latestStatusBar=(()=>{
+      if(!latestInvRec)return null;
+      const lv=verify(pid,latestInvRec.date,getS(latestInvRec),getD(latestInvRec));
+      const lBad=lv&&!lv.isFirst&&!lv.ok;
+      const lOk=lv&&!lv.isFirst&&lv.ok;
+      const lFirst=lv&&lv.isFirst;
+      return el('div',{style:{
+        display:'flex',alignItems:'center',gap:'8px',
+        padding:'8px 16px',borderBottom:'.5px solid var(--bd)',
+        background:lBad?'#FFF0F0':lOk?'#F1FFF8':'var(--surf2)',
+        flexShrink:'0'
+      }},
+        el('span',{style:{fontSize:'10px',color:'var(--t3)'}},'최신 실사 ('+fmtDateFull(latestInvRec.date)+')'),
+        lBad?el('span',{class:'ver',style:{fontSize:'11px',marginLeft:'auto'}},
+            `불일치 ${lv.actual-lv.expectedFromBase>0?'+':''}${lv.actual-lv.expectedFromBase}개`)
+          :lOk?el('span',{class:'vok',style:{fontSize:'11px',marginLeft:'auto'}},'✅ 일치')
+          :lFirst?el('span',{style:{fontSize:'10px',color:'var(--t3)',marginLeft:'auto'}},'첫 실사')
+          :null
+      );
+    })();
+
+    const body=el('div',{style:{overflowY:'auto',flex:'1',padding:'0 0 24px'}});
+
+    if(moKeys.length===0){
+      body.append(el('div',{style:{textAlign:'center',color:'var(--t3)',padding:'40px',fontSize:'13px'}},'기록 없음'));
+    } else {
+      moKeys.forEach(mo=>{
+        const [y,m]=mo.split('-');
+        const recs=moGrouped[mo]; // 오래된 날짜 → 최신 날짜 순
+        const moOk=recs.filter(r=>isRealInv(r)&&verify(pid,r.date,getS(r),getD(r))?.ok===true).length;
+        const moBad=recs.filter(r=>isRealInv(r)&&verify(pid,r.date,getS(r),getD(r))?.ok===false).length;
+        const moExpandKey='vover_'+pid+'_'+mo;
+        // focusMo인 월은 기본 열림, 나머지는 state 따라감 (기본 열림)
+        const isMoOpen=state._noteExpanded?.[moExpandKey]!==false;
+
+        // 월 헤더
+        const moHdrId='vmo_'+mo.replace('-','');
+        const isFocus=mo===focusMo;
+        const moHdr=el('div',{id:moHdrId,style:{
+          display:'flex',alignItems:'center',gap:'8px',
+          padding:'10px 16px 6px',
+          background:isFocus?'#FFF3E0':'var(--surf2)',
+          borderBottom:'.5px solid var(--bd)',
+          borderLeft:isFocus?'3px solid var(--acc)':'3px solid transparent',
+          cursor:'pointer',userSelect:'none'
+        }},
+          el('span',{style:{fontWeight:'700',fontSize:'13px',color:'var(--pm)'}}
+            ,`${y}년 ${parseInt(m)}월`),
+          el('span',{style:{fontSize:'11px',color:'var(--t3)'}},'('+recs.length+'건)'),
+          moBad>0?el('span',{style:{
+            background:'var(--er)',color:'#fff',borderRadius:'10px',
+            padding:'1px 7px',fontSize:'10px',fontWeight:'700'
+          }},`불일치 ${moBad}`):null,
+          moOk>0?el('span',{style:{fontSize:'11px',color:'var(--ok)'}},'✅ '+moOk):null,
+          el('span',{style:{marginLeft:'auto',fontSize:'11px',color:'var(--t3)'}}
+            ,isMoOpen?'▲':'▼')
+        );
+        moHdr.addEventListener('click',()=>{
+          if(!state._noteExpanded)state._noteExpanded={};
+          state._noteExpanded[moExpandKey]=!isMoOpen;
+          render();
+        });
+        body.append(moHdr);
+
+        if(!isMoOpen)return;
+
+        // 날짜 레코드들 (이 월 안에서 최신순으로)
+        [...recs].sort((a,b)=>b.date.localeCompare(a.date)).forEach(rec=>{
+          const dateStr=fmtDateFull(rec.date);
+
+          // 판매만 입력한 날
+          if(!isRealInv(rec)){
+            const salesQty=(parseInt(rec.sales)||0)+toArr(rec.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
+            body.append(el('div',{style:{
+              display:'flex',alignItems:'center',gap:'8px',
+              padding:'8px 16px',borderBottom:'.5px solid var(--surf2)'
+            }},
+              el('span',{style:{fontSize:'11px',color:'var(--t3)',minWidth:'60px'}},dateStr),
+              el('span',{style:{
+                fontSize:'10px',background:'#FFF3E0',color:'var(--acc)',
+                padding:'2px 8px',borderRadius:'8px',fontWeight:'600'
+              }},`🛒 출고 -${salesQty}`),
+              el('span',{style:{fontSize:'10px',color:'var(--t3)'}},'(실사 없음)')
+            ));
+            return;
+          }
+
+          const v=verify(pid,rec.date,getS(rec),getD(rec));
+          const isBad=v&&!v.isFirst&&!v.ok;
+          const isOk=v&&!v.isFirst&&v.ok;
+          // diff는 누적 기준(expectedFromBase)으로 계산해야 실제 불일치 수량이 표시됨
+          const diff=isBad?(v.actual-(v.expectedFromBase!==undefined?v.expectedFromBase:v.expected)):null;
+          const memoKey=rec.date+'_'+pid;
+          const savedMemo=rec.verifyNote||'';
+          const isMemoOpen=!!state.verifyMemoOpen?.[memoKey];
+          const total=getTotal(getS(rec),getD(rec),prod);
+
+          const recRow=el('div',{style:{
+            padding:'8px 16px 10px',borderBottom:'.5px solid var(--surf2)',
+            background:isBad?'#FFF5F5':isOk?'#F9FFFE':'#fff'
+          }});
+
+          // 날짜 + 결과
+          const topLine=el('div',{style:{display:'flex',alignItems:'center',gap:'8px',flexWrap:'wrap',marginBottom:'6px'}});
+          topLine.append(
+            el('span',{style:{fontSize:'11px',fontWeight:'700',color:isBad?'var(--er)':isOk?'var(--t2)':'var(--t3)',minWidth:'64px'}},dateStr)
+          );
+          if(!v||v.isFirst){
+            topLine.append(el('span',{style:{fontSize:'10px',color:'var(--t3)',background:'var(--surf2)',padding:'2px 7px',borderRadius:'8px'}},'첫 실사 (비교할 이전 기록 없음)'));
+          } else if(isOk){
+            // ok:true = 기준점 대비 누적 계산도 일치 → 완전 해소
+            topLine.append(el('span',{class:'vok',style:{fontSize:'11px'}},'✅ 일치'));
+          } else {
+            // 불일치
+            topLine.append(
+              el('span',{class:'ver',style:{fontSize:'10px',padding:'2px 8px'}},`불일치 ${diff>0?'+':''}${diff}개`)
+            );
+            const memoBtn=el('button',{style:{
+              background:savedMemo?'#FFF3CD':'none',
+              border:'1px solid '+(savedMemo?'var(--acc)':'var(--bd2)'),
+              borderRadius:'10px',padding:'1px 6px',fontSize:'9px',cursor:'pointer',
+              color:savedMemo?'var(--acc)':'var(--t3)'
+            }},savedMemo?'📝 메모':'+ 메모');
+            memoBtn.addEventListener('click',e=>{
+              e.stopPropagation();
+              state.verifyMemoOpen={...state.verifyMemoOpen,[memoKey]:!isMemoOpen};
+              render();
+            });
+            topLine.append(memoBtn);
+          }
+          topLine.append(el('span',{style:{marginLeft:'auto',fontSize:'10px',color:'var(--t3)'}},`실사합계 ${total}개`));
+          recRow.append(topLine);
+
+          // 계산 내역 — 첫 실사 기준 누적으로 표시
+          if(v&&!v.isFirst){
+            const firstDate=v.firstDate||v.prevDate;
+            const firstTotal=v.firstTotal||v.prevTotal; // 첫 실사 합계
+            const transfer=v.transfer||0;
+            // 첫 실사일 이후 ~ 현재 실사일 당일 포함 출고 목록
+            const midRecs=Object.values(
+              toArr(state.db.site)
+                .filter(r=>r.productId===pid&&r.date>=firstDate&&r.date<=rec.date)
+                .reduce((map,r)=>{if(!map[r.date]||r.ts>map[r.date].ts)map[r.date]=r;return map;},{})
+            ).sort((a,b)=>a.date.localeCompare(b.date));
+
+            const calcBox=el('div',{style:{
+              fontSize:'10px',background:isBad?'#FFF0F0':'#F8F8F8',
+              padding:'7px 10px',borderRadius:'7px',lineHeight:'1.9',
+              borderLeft:'3px solid '+(isBad?'var(--er)':isOk?'var(--ok)':'var(--bd)')
+            }});
+            calcBox.append(
+              el('div',{style:{color:'var(--t3)',marginBottom:'3px'}},`📐 계산 기준: ${fmtDateFull(firstDate)} → ${dateStr}`)
+            );
+            // 첫 실사
+            calcBox.append(el('div',null,
+              el('span',{style:{color:'var(--t2)'}},'첫 실사'),
+              el('span',{style:{fontWeight:'700',color:'var(--pm)',float:'right'}},`${v.firstTotal||firstTotal}개`)
+            ));
+            // 출고 내역 (당일 포함)
+            midRecs.forEach(mr=>{
+              const mSales=parseInt(mr.sales)||0;
+              const mOut=toArr(mr.outgoing||[]).reduce((s,o)=>s+(parseInt(o.qty)||0),0);
+              const mTotal=mSales+mOut;
+              if(mTotal===0)return;
+              const parts=[];
+              if(mSales>0)parts.push(`판매 ${mSales}`);
+              toArr(mr.outgoing||[]).forEach(o=>{if((parseInt(o.qty)||0)>0)parts.push(`${o.type} ${parseInt(o.qty)}`);});
+              calcBox.append(el('div',{style:{color:'var(--er)'}},
+                el('span',null,`  ${fmtDate(mr.date)} 출고`),
+                el('span',{style:{float:'right'}},`-${mTotal}개 (${parts.join(', ')})`)
+              ));
+            });
+            if(transfer>0){
+              calcBox.append(el('div',{style:{color:'var(--ok)'}},
+                el('span',null,'  반입'),
+                el('span',{style:{float:'right'}},`+${transfer}개`)
+              ));
+            }
+            // 예상 vs 실사 (모두 firstRec 누적 기준)
+            calcBox.append(el('div',{style:{borderTop:'1px solid var(--bd)',marginTop:'4px',paddingTop:'4px'}},
+              el('span',{style:{color:'var(--pm)',fontWeight:'600'}},'예상'),
+              el('span',{style:{fontWeight:'700',color:'var(--pm)',float:'right'}},`${v.expectedFromBase}개`)
+            ));
+            calcBox.append(el('div',null,
+              el('span',{style:{color:isBad?'var(--er)':isOk?'var(--ok)':'var(--t2)',fontWeight:'700'}},'실사'),
+              el('span',{style:{fontWeight:'700',color:isBad?'var(--er)':isOk?'var(--ok)':'var(--t2)',float:'right'}},
+                `${v.actual}개${isBad?'  →  차이 '+(diff>0?'+':'')+diff+'개':''}`)
+            ));
+            recRow.append(calcBox);
+          }
+
+          // 메모
+          if(isMemoOpen&&isBad){
+            recRow.append(buildMemoInput(memoKey,savedMemo,pid,rec.date));
+          } else if(savedMemo&&!isMemoOpen){
+            recRow.append(el('div',{style:{
+              marginTop:'4px',fontSize:'9px',color:'var(--acc)',
+              background:'#FFF8E1',padding:'3px 7px',borderRadius:'5px',wordBreak:'break-all'
+            }},`📝 ${savedMemo}`));
+          }
+
+          body.append(recRow);
+        });
+      });
+    }
+
+    sheet.append(hdr,...(latestStatusBar?[latestStatusBar]:[]),body);
+    overlay.append(sheet);
+    root.append(overlay);
+
+    // focusMo로 자동 스크롤
+    if(focusMo){
+      requestAnimationFrame(()=>{
+        const target=document.getElementById('vmo_'+focusMo.replace('-',''));
+        if(target)target.scrollIntoView({behavior:'smooth',block:'start'});
+      });
+    }
+  }
+
+  // ── 엑셀 내보내기 월 선택 바텀시트 ──
+  if(state._showExportPicker){
+    // 기록이 있는 월 목록
+    const siteMonthsAll=[...new Set(
+      toArr(state.db.site).map(r=>r.date.slice(0,7))
+    )].sort((a,b)=>b.localeCompare(a));
+
+    const selKey=`${state.siteRecYear}-${String(state.siteRecMonth).padStart(2,'0')}`;
+
+    // 오버레이 (클릭 시 닫기)
+    const overlay=el('div',{style:{
+      position:'fixed',inset:'0',background:'rgba(0,0,0,.45)',zIndex:'50',
+      display:'flex',alignItems:'flex-end'
+    }});
+    overlay.addEventListener('click',e=>{if(e.target===overlay)set({_showExportPicker:false});});
+
+    // 시트 본체
+    const sheet=el('div',{style:{
+      width:'100%',background:'#fff',borderRadius:'20px 20px 0 0',
+      padding:'0 0 calc(20px + env(safe-area-inset-bottom))',
+      maxHeight:'80vh',overflowY:'auto',
+      boxShadow:'0 -4px 24px rgba(0,0,0,.18)'
+    }});
+
+    // 핸들바 + 타이틀
+    const titleRow=el('div',{style:{padding:'14px 16px 8px',borderBottom:'.5px solid var(--bd)',position:'sticky',top:'0',background:'#fff',zIndex:'1'}},
+      el('div',{style:{width:'36px',height:'4px',background:'var(--bd)',borderRadius:'2px',margin:'0 auto 10px'}}),
+      el('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between'}},
+        el('div',null,
+          el('div',{style:{fontWeight:'700',fontSize:'14px'}},'📋 실사기록 엑셀 내보내기'),
+          el('div',{style:{fontSize:'10px',color:'var(--t3)',marginTop:'2px'}},'내보낼 월을 선택하세요')
+        ),
+        el('button',{style:{
+          background:'none',border:'none',fontSize:'20px',color:'var(--t3)',
+          cursor:'pointer',padding:'0 4px',lineHeight:'1'
+        },onclick:()=>set({_showExportPicker:false})},'×')
+      )
+    );
+
+    // 월 선택 pill 목록
+    const pillsWrap=el('div',{style:{padding:'12px 16px',display:'flex',flexDirection:'column',gap:'10px'}});
+
+    if(siteMonthsAll.length===0){
+      pillsWrap.append(el('div',{style:{textAlign:'center',color:'var(--t3)',fontSize:'12px',padding:'20px'}},'저장된 실사기록이 없어요'));
+    } else {
+      // ── 전체 버튼 ──
+      const totalCnt=toArr(state.db.site).length;
+      const isAllOn=!!state._siteRecAll;
+      const allBtn=el('button',{style:{
+        width:'100%',padding:'10px 14px',borderRadius:'12px',
+        border:'1.5px solid '+(isAllOn?'var(--p)':'var(--bd)'),
+        background:isAllOn?'var(--p)':'var(--surf2)',
+        color:isAllOn?'#fff':'var(--t)',
+        fontSize:'12px',fontWeight:isAllOn?'700':'500',cursor:'pointer',
+        display:'flex',alignItems:'center',justifyContent:'space-between'
+      }},
+        el('span',null,'📂 전체 기록'),
+        el('span',{style:{fontSize:'10px',color:isAllOn?'rgba(255,255,255,.8)':'var(--t3)',fontWeight:'400'}},totalCnt+'건 전체')
+      );
+      allBtn.addEventListener('click',()=>{state._siteRecAll=true;render();});
+      pillsWrap.append(allBtn);
+      pillsWrap.append(el('div',{style:{fontSize:'10px',fontWeight:'700',color:'var(--t2)',marginTop:'4px'}},'또는 월별 선택'));
+
+      // 연도별 그룹
+      const byYear={};
+      siteMonthsAll.forEach(mo=>{
+        const y=mo.slice(0,4);
+        if(!byYear[y])byYear[y]=[];
+        byYear[y].push(mo);
+      });
+      Object.keys(byYear).sort((a,b)=>b-a).forEach(y=>{
+        pillsWrap.append(el('div',{style:{fontSize:'10px',fontWeight:'700',color:'var(--t2)',marginBottom:'4px'}},y+'년'));
+        const row=el('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}});
+        byYear[y].forEach(mo=>{
+          const[,m]=mo.split('-');
+          const cnt=toArr(state.db.site).filter(r=>r.date.startsWith(mo)).length;
+          const isOn=!isAllOn&&mo===selKey;
+          const btn=el('button',{style:{
+            padding:'6px 14px',borderRadius:'20px',border:'1.5px solid '+(isOn?'var(--p)':'var(--bd)'),
+            background:isOn?'var(--p)':'#fff',color:isOn?'#fff':'var(--t)',
+            fontSize:'12px',fontWeight:isOn?'700':'400',cursor:'pointer',
+            display:'flex',flexDirection:'column',alignItems:'center',gap:'1px'
+          }},
+            el('span',null,parseInt(m)+'월'),
+            el('span',{style:{fontSize:'8px',color:isOn?'rgba(255,255,255,.8)':'var(--t3)'}},cnt+'건')
+          );
+          btn.addEventListener('click',()=>{
+            state.siteRecYear=Number(y);
+            state.siteRecMonth=Number(m);
+            state._siteRecAll=false;
+            render();
+          });
+          row.append(btn);
+        });
+        pillsWrap.append(row);
+      });
+    }
+
+    // 내보내기 버튼
+    const siteRecCnt=state._siteRecAll
+      ?toArr(state.db.site).length
+      :(siteMonthsAll.length>0?toArr(state.db.site).filter(r=>r.date.startsWith(selKey)).length:0);
+    const expBtnLabel=state._siteRecAll
+      ?`📥 전체 실사기록 내보내기 (${siteRecCnt}건)`
+      :`📥 ${state.siteRecYear}년 ${state.siteRecMonth}월 실사기록 내보내기 (${siteRecCnt}건)`;
+    const expBtn=el('button',{style:{
+      width:'calc(100% - 32px)',margin:'8px 16px 0',padding:'13px',
+      background:'var(--p)',color:'#fff',border:'none',
+      borderRadius:'var(--r)',fontSize:'13px',fontWeight:'700',cursor:'pointer'
+    }},expBtnLabel);
+    expBtn.addEventListener('click',()=>{
+      set({_showExportPicker:false});
+      setTimeout(()=>exportAll(),50);
+    });
+
+    sheet.append(titleRow,pillsWrap,expBtn);
+    overlay.append(sheet);
+    root.append(overlay);
+  }
+
+  // 스크롤 위치 복원
+  requestAnimationFrame(()=>{
+    window.scrollTo(0,scrollY);
+
+  });
+}
+window.addEventListener('resize',()=>render());
+window.addEventListener('orientationchange',()=>setTimeout(render,150));
+render();
+
+// Service Worker 등록
+if('serviceWorker' in navigator){
+  const swCode=`
+const CACHE='museumshop-v1';
+const ASSETS=['/'];
+self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));
+self.addEventListener('fetch',e=>{
+  if(e.request.url.includes('firebase')||e.request.url.includes('googleapis'))return;
+  e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)));
+});
+  `.trim();
+  const blob=new Blob([swCode],{type:'application/javascript'});
+  const swUrl=URL.createObjectURL(blob);
+  navigator.serviceWorker.register(swUrl).catch(()=>{});
+}
+</script>
+</body>
+</html>
