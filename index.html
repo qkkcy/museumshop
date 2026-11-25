@@ -14,11 +14,12 @@
 <link rel="manifest" href="manifest.json">
 
 <!-- Apple Touch Icon - Audeum inspired -->
-<link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8cmVjdCB3aWR0aD0iNTEyIiBoZWlnaHQ9IjUxMiIgcng9IjEwMCIgZmlsbD0iIzFBMUExQSIvPgogIDx0ZXh0IHg9IjI1NiIgeT0iMjQwIiBmb250LXNpemU9IjIwMCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSI+8J+TozwvdGV4dD4KICA8bGluZSB4MT0iODAiIHkxPSIzNDAiIHgyPSI0MzIiIHkyPSIzNDAiIHN0cm9rZT0iI0U4RTREQyIgc3Ryb2tlLXdpZHRoPSIxIiBvcGFjaXR5PSIwLjQiLz4KICA8dGV4dCB4PSIyNTYiIHk9IjM5MCIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsc2VyaWYiIGZvbnQtc2l6ZT0iNTIiIGZvbnQtd2VpZ2h0PSIzMDAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZpbGw9IiNFOEU0REMiIGxldHRlci1zcGFjaW5nPSI4Ij7smKTrlJTsm4A8L3RleHQ+CiAgPHRleHQgeD0iMjU2IiB5PSI0NDgiIGZvbnQtZmFtaWx5PSJHZW9yZ2lhLHNlcmlmIiBmb250LXNpemU9IjMyIiBmb250LXdlaWdodD0iMzAwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSJyZ2JhKDIzMiwyMjgsMjIwLDAuNikiIGxldHRlci1zcGFjaW5nPSI2Ij7rrqTsp4Dsl4Tsg7U8L3RleHQ+Cjwvc3ZnPg==">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700&family=Noto+Serif+KR:wght@600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-messaging-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -242,6 +243,7 @@ function loadDb(){
 function saveDb(d){
   try{localStorage.setItem(KEY,JSON.stringify(d));}catch{}
   db_ref.set(d).catch(e=>console.error('Firebase 저장 오류',e));
+  updateLowSummary();
 }
 
 // Firebase 실시간 동기화: 원격 변경사항 수신
@@ -382,6 +384,53 @@ function getReorderItems(){
     const total=site+wh;
     return total<REORDER_THRESHOLD?{prod,site,wh,total}:null;
   }).filter(Boolean).sort((a,b)=>a.total-b.total);
+}
+
+// ── 발주 필요 요약을 서버(Cloudflare Worker)가 읽도록 별도 경로에 기록 ──
+// 재고가 바뀌는 시점(저장)과 앱 최초 로드 시에만 기록. 재고 원본 데이터(museumshop)와는 별개 경로.
+function updateLowSummary(){
+  try{
+    const items=getReorderItems().map(({prod,total})=>({id:prod.id,name:prod.name,total}));
+    firebase.database().ref('museumshop_push/low').set({items,updated:Date.now()}).catch(()=>{});
+  }catch(e){console.error('발주 요약 기록 오류',e);}
+}
+
+// ── 푸시 알림 (FCM) ──────────────────────────────────────────
+const VAPID_KEY='여기에_VAPID_공개키_붙여넣기';
+const SW_URL='./sw.js';
+function pushSupported(){return('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);}
+function isStandalone(){return window.navigator.standalone===true||window.matchMedia('(display-mode: standalone)').matches;}
+function pushOn(){
+  try{return pushSupported()&&Notification.permission==='granted'&&!!localStorage.getItem('push_token');}catch(e){return false;}
+}
+async function enablePush(){
+  try{
+    if(!pushSupported()){
+      showToast(/iPhone|iPad/.test(navigator.userAgent)&&!isStandalone()
+        ?'홈 화면에 추가한 앱에서 열어주세요':'이 브라우저는 푸시를 지원하지 않아요');
+      return;
+    }
+    if(VAPID_KEY.startsWith('여기에')){showToast('VAPID 키가 설정되지 않았어요');return;}
+    const perm=await Notification.requestPermission();
+    if(perm!=='granted'){showToast('알림이 허용되지 않았어요');return;}
+    const reg=await navigator.serviceWorker.register(SW_URL);
+    await navigator.serviceWorker.ready;
+    const token=await firebase.messaging().getToken({vapidKey:VAPID_KEY,serviceWorkerRegistration:reg});
+    if(!token){showToast('알림 토큰을 받지 못했어요');return;}
+    await firebase.database().ref('museumshop_push/tokens/'+token).set({ts:Date.now(),ua:navigator.userAgent.slice(0,120)});
+    localStorage.setItem('push_token',token);
+    showToast('🔔 알림이 켜졌어요');render();
+  }catch(e){console.error(e);showToast('알림 설정 실패: '+(e.message||e));}
+}
+async function disablePush(){
+  if(!confirm('이 기기의 발주 알림을 끌까요?'))return;
+  try{
+    const token=localStorage.getItem('push_token');
+    if(token)await firebase.database().ref('museumshop_push/tokens/'+token).remove();
+    try{await firebase.messaging().deleteToken();}catch(e){}
+    localStorage.removeItem('push_token');
+    showToast('🔕 알림이 꺼졌어요');render();
+  }catch(e){console.error(e);showToast('알림 끄기 실패');}
 }
 
 function reorderBanner(){
@@ -1128,6 +1177,7 @@ db_ref.once('value').then(snapshot => {
   state.draft = initDraft(state.selDate);
   state._draftInit = true;
   render();
+  updateLowSummary();
 }).catch(()=>{
   state._loading = false;
   render();
@@ -2830,6 +2880,7 @@ function render(){
       el('div',{style:{display:'flex',gap:'4px'}},
         state.tab===0&&state.stockTab==='site'?el('button',{class:'hdr-btn',onclick:()=>exportSite()},'현장기록'):null,
         state.tab===0&&state.stockTab==='wh'?el('button',{class:'hdr-btn',onclick:()=>exportWh()},'창고기록'):null,
+        el('button',{class:'hdr-btn',onclick:()=>pushOn()?disablePush():enablePush()},pushOn()?'🔔 ON':'🔔 알림'),
         el('button',{class:'hdr-btn',style:{background:'rgba(255,255,255,.25)'},onclick:()=>set({_showExportPicker:true})},'⬇ 종합')
       )
     )
@@ -3248,20 +3299,9 @@ window.addEventListener('resize',()=>render());
 window.addEventListener('orientationchange',()=>setTimeout(render,150));
 render();
 
-// Service Worker 등록
+// Service Worker 등록 (푸시 알림용, 실제 파일 sw.js)
 if('serviceWorker' in navigator){
-  const swCode=`
-const CACHE='museumshop-v1';
-const ASSETS=['/'];
-self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS))));
-self.addEventListener('fetch',e=>{
-  if(e.request.url.includes('firebase')||e.request.url.includes('googleapis'))return;
-  e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)));
-});
-  `.trim();
-  const blob=new Blob([swCode],{type:'application/javascript'});
-  const swUrl=URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swUrl).catch(()=>{});
+  navigator.serviceWorker.register(SW_URL).catch(()=>{});
 }
 </script>
 </body>
